@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { db } from '../lib/firebase';
 import { collection, getDocs, addDoc, deleteDoc, doc, query, where, orderBy as firestoreOrderBy } from 'firebase/firestore';
-import { TrendingUp, Calendar, Download, Filter, X, ChevronRight, Users, Plus, Edit2, Trash2, DollarSign } from 'lucide-react';
+import { TrendingUp, Calendar, Download, Filter, X, ChevronRight, Users, Plus, Edit2, Trash2, DollarSign, FileText } from 'lucide-react';
 import { formatDateLocal } from '../utils/dateUtils';
 import { exportToExcel } from '../utils/excelExport';
+import { exportCommissionSummaryToPDF, exportDriverCommissionDetailsToPDF, exportAllDriversDetailsToPDF } from '../utils/commissionPdfExport';
 
 import type { Trip, Driver, Vehicle, CommissionRule, ManualCommission } from '../types';
 
@@ -255,6 +256,90 @@ export default function CommissionRanking() {
         : 'filtrado';
       exportToExcel(exportData, `comissoes-detalhes-${driverName}-${monthName}.csv`);
     }
+  };
+
+  const handleExportPDF = () => {
+    const monthName = currentMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+    if (view === 'summary') {
+      const summaries = getDriverSummaries();
+      const exportData = summaries.map((summary, index) => ({
+        rank: index + 1,
+        name: summary.driverName,
+        totalCommission: summary.totalCommission,
+        tripCount: summary.tripCount,
+        totalFreight: summary.totalFreight,
+        manualCommissions: summary.manualCommissions,
+      }));
+
+      exportCommissionSummaryToPDF(exportData, monthName, `comissoes-resumo-${monthName.replace(/\s+/g, '-')}`);
+    } else {
+      const filteredTrips = getFilteredTrips();
+      const selectedDriverManualCommissions = selectedDriver
+        ? manualCommissions.filter(m => m.driver_id === selectedDriver)
+        : [];
+
+      const tripData = filteredTrips.map(trip => ({
+        date: formatDateLocal(trip.departure_date),
+        origin: trip.origin,
+        destination: trip.destination,
+        plate: trip.vehiclePlate,
+        commission: Number(trip.driver_commission),
+      }));
+
+      const manualData = selectedDriverManualCommissions.map(manual => ({
+        date: formatDateLocal(manual.date),
+        description: manual.description,
+        origin: manual.origin || '-',
+        commission: manual.commission_value,
+      }));
+
+      const driverName = selectedDriver
+        ? drivers.find(d => d.id === selectedDriver)?.name || 'motorista'
+        : 'filtrado';
+
+      exportDriverCommissionDetailsToPDF(
+        driverName,
+        tripData,
+        manualData,
+        monthName,
+        `comissoes-detalhes-${driverName.replace(/\s+/g, '-')}-${monthName.replace(/\s+/g, '-')}`
+      );
+    }
+  };
+
+  const handleExportAllDriversPDF = () => {
+    const monthName = currentMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    const summaries = getDriverSummaries();
+
+    const driversData = summaries.map(summary => {
+      const driverTrips = trips.filter(trip => trip.driver_id === summary.driverId);
+      const driverManualCommissions = manualCommissions.filter(m => m.driver_id === summary.driverId);
+
+      return {
+        driverName: summary.driverName,
+        trips: driverTrips.map(trip => ({
+          date: formatDateLocal(trip.departure_date),
+          origin: trip.origin,
+          destination: trip.destination,
+          plate: trip.vehiclePlate,
+          commission: Number(trip.driver_commission),
+        })),
+        manualCommissions: driverManualCommissions.map(manual => ({
+          date: formatDateLocal(manual.date),
+          description: manual.description,
+          origin: manual.origin || '-',
+          commission: manual.commission_value,
+        })),
+        totalCommission: summary.totalCommission,
+      };
+    });
+
+    exportAllDriversDetailsToPDF(
+      driversData,
+      monthName,
+      `comissoes-todos-motoristas-${monthName.replace(/\s+/g, '-')}`
+    );
   };
 
   const handlePrevMonth = () => {
@@ -758,13 +843,29 @@ export default function CommissionRanking() {
               <div>
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-lg font-semibold text-slate-900">Ranking de Comissões</h3>
-                  <button
-                    onClick={handleExportExcel}
-                    className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    <Download className="h-5 w-5 mr-2" />
-                    Exportar Excel
-                  </button>
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={handleExportExcel}
+                      className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      <Download className="h-5 w-5 mr-2" />
+                      Exportar Excel
+                    </button>
+                    <button
+                      onClick={handleExportPDF}
+                      className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      <FileText className="h-5 w-5 mr-2" />
+                      Exportar PDF
+                    </button>
+                    <button
+                      onClick={handleExportAllDriversPDF}
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <FileText className="h-5 w-5 mr-2" />
+                      PDF Completo
+                    </button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {driverSummaries.map((summary, index) => (
@@ -827,18 +928,32 @@ export default function CommissionRanking() {
                     </div>
                   )}
                 </div>
-                <button
-                  onClick={handleExportExcel}
-                  disabled={filteredTrips.length === 0 && (!selectedDriver || manualCommissions.filter(m => m.driver_id === selectedDriver).length === 0)}
-                  className={`inline-flex items-center px-4 py-2 rounded-lg transition-colors ${
-                    filteredTrips.length > 0 || (selectedDriver && manualCommissions.filter(m => m.driver_id === selectedDriver).length > 0)
-                      ? 'bg-green-600 text-white hover:bg-green-700'
-                      : 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                  }`}
-                >
-                  <Download className="h-5 w-5 mr-2" />
-                  Exportar Excel
-                </button>
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={handleExportExcel}
+                    disabled={filteredTrips.length === 0 && (!selectedDriver || manualCommissions.filter(m => m.driver_id === selectedDriver).length === 0)}
+                    className={`inline-flex items-center px-4 py-2 rounded-lg transition-colors ${
+                      filteredTrips.length > 0 || (selectedDriver && manualCommissions.filter(m => m.driver_id === selectedDriver).length > 0)
+                        ? 'bg-green-600 text-white hover:bg-green-700'
+                        : 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                    }`}
+                  >
+                    <Download className="h-5 w-5 mr-2" />
+                    Exportar Excel
+                  </button>
+                  <button
+                    onClick={handleExportPDF}
+                    disabled={filteredTrips.length === 0 && (!selectedDriver || manualCommissions.filter(m => m.driver_id === selectedDriver).length === 0)}
+                    className={`inline-flex items-center px-4 py-2 rounded-lg transition-colors ${
+                      filteredTrips.length > 0 || (selectedDriver && manualCommissions.filter(m => m.driver_id === selectedDriver).length > 0)
+                        ? 'bg-red-600 text-white hover:bg-red-700'
+                        : 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                    }`}
+                  >
+                    <FileText className="h-5 w-5 mr-2" />
+                    Exportar PDF
+                  </button>
+                </div>
               </div>
 
               {filteredTrips.length === 0 && (!selectedDriver || manualCommissions.filter(m => m.driver_id === selectedDriver).length === 0) ? (
