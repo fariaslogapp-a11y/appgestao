@@ -94,3 +94,22 @@ export interface TireInspectionResponse {
   notes: string | null;
   created_at: string;
 }
+
+export interface CommissionRule {
+  id: string;
+  origin: string;
+  destination: string;
+  commission_value: number;
+  created_at: string;
+}
+
+export interface ManualCommission {
+  id: string;
+  driver_id: string;
+  description: string;
+  origin: string;
+  commission_value: number;
+  notes: string;
+  date: string;
+  created_at: string;
+}
