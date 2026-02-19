@@ -232,6 +232,13 @@ function TireInspectionTable({ type }: { type: string }) {
           { id: 'T3E2', label: 'Eixo 3 Direito Externo' },
           { id: 'T3I2', label: 'Eixo 3 Direito Interno' },
         ];
+      case 'carro':
+        return [
+          { id: 'PDE', label: 'Pneu Dianteiro Esquerdo' },
+          { id: 'PDD', label: 'Pneu Dianteiro Direito' },
+          { id: 'PTE', label: 'Pneu Traseiro Esquerdo' },
+          { id: 'PTD', label: 'Pneu Traseiro Direito' },
+        ];
       default:
         return [];
     }
