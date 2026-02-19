@@ -206,6 +206,32 @@ export default function VehicleIllustration({ type }: Props) {
           </svg>
         );
 
+      case 'carro':
+        return (
+          <svg viewBox="0 0 400 500" className="w-full max-w-md mx-auto">
+            <rect x="50" y="50" width="300" height="400" fill="#e2e8f0" stroke="#1e293b" strokeWidth="3" rx="10" />
+            <text x="200" y="30" textAnchor="middle" className="text-sm font-bold" fill="#1e293b">
+              Visão de Baixo
+            </text>
+
+            <rect x="20" y="100" width="60" height="80" fill="#334155" stroke="#0f172a" strokeWidth="2" rx="5" />
+            <text x="50" y="145" textAnchor="middle" className="text-xs font-bold" fill="white">PDE</text>
+
+            <rect x="320" y="100" width="60" height="80" fill="#334155" stroke="#0f172a" strokeWidth="2" rx="5" />
+            <text x="350" y="145" textAnchor="middle" className="text-xs font-bold" fill="white">PDD</text>
+
+            <rect x="20" y="340" width="60" height="80" fill="#334155" stroke="#0f172a" strokeWidth="2" rx="5" />
+            <text x="50" y="385" textAnchor="middle" className="text-xs font-bold" fill="white">PTE</text>
+
+            <rect x="320" y="340" width="60" height="80" fill="#334155" stroke="#0f172a" strokeWidth="2" rx="5" />
+            <text x="350" y="385" textAnchor="middle" className="text-xs font-bold" fill="white">PTD</text>
+
+            <text x="200" y="250" textAnchor="middle" className="text-lg font-bold" fill="#475569">
+              CARRO
+            </text>
+          </svg>
+        );
+
       default:
         return null;
     }
@@ -220,6 +246,7 @@ export default function VehicleIllustration({ type }: Props) {
       <div className="mt-4 text-center text-sm text-slate-600">
         <p className="font-semibold">Legenda:</p>
         <p>PDE = Pneu Dianteiro Esquerdo | PDD = Pneu Dianteiro Direito</p>
+        <p>PTE = Pneu Traseiro Esquerdo | PTD = Pneu Traseiro Direito</p>
         <p>TTE = Traseiro Externo | TTI = Traseiro Interno</p>
         <p>T1, T2, T3 = Eixo 1, 2, 3 | E = Esquerdo | I = Interno</p>
       </div>
