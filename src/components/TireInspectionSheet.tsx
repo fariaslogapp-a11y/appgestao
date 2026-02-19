@@ -91,8 +91,8 @@ export default function TireInspectionSheet() {
   };
 
   const handleGenerateLink = async () => {
-    if (!selectedVehicle || !driverName.trim() || !driverCpf.trim()) {
-      alert('Por favor, preencha o veículo, nome e CPF do motorista');
+    if (!selectedVehicle || !driverName.trim()) {
+      alert('Por favor, preencha o veículo e o nome do responsável');
       return;
     }
 
@@ -373,7 +373,7 @@ export default function TireInspectionSheet() {
                       <div className="border-t border-slate-300 pt-6 space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Nome do Motorista
+                            Responsável
                           </label>
                           <input
                             type="text"
@@ -386,7 +386,7 @@ export default function TireInspectionSheet() {
 
                         <div>
                           <label className="block text-sm font-medium text-slate-700 mb-2">
-                            CPF do Motorista
+                            CPF <span className="text-slate-500 text-xs">(opcional)</span>
                           </label>
                           <input
                             type="text"
@@ -403,9 +403,9 @@ export default function TireInspectionSheet() {
                   <div className="flex justify-center space-x-4">
                     <button
                       onClick={handleGenerateLink}
-                      disabled={!selectedVehicle || !driverName.trim() || !driverCpf.trim() || generatingLink}
+                      disabled={!selectedVehicle || !driverName.trim() || generatingLink}
                       className={`inline-flex items-center px-6 py-3 rounded-lg font-medium transition-colors ${
-                        selectedVehicle && driverName.trim() && driverCpf.trim()
+                        selectedVehicle && driverName.trim()
                           ? 'bg-blue-600 text-white hover:bg-blue-700'
                           : 'bg-slate-300 text-slate-500 cursor-not-allowed'
                       }`}
@@ -462,7 +462,7 @@ export default function TireInspectionSheet() {
                           Veículo
                         </th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">
-                          Motorista
+                          Responsável
                         </th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">
                           Status
