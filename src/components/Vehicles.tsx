@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { db } from '../lib/firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy } from 'firebase/firestore';
 import type { Vehicle } from '../types';
-import { Plus, Edit2, Trash2, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Upload } from 'lucide-react';
+import BulkVehicleImportModal from './BulkVehicleImportModal';
 
 type VehicleForm = Omit<Vehicle, 'id' | 'created_at'>;
 
@@ -10,6 +11,7 @@ export default function Vehicles() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [formData, setFormData] = useState<VehicleForm>({
     plate: '',
@@ -183,6 +185,21 @@ export default function Vehicles() {
     return [];
   };
 
+  const handleBulkImport = async (vehiclesToImport: Array<Omit<Vehicle, 'id' | 'created_at'>>) => {
+    try {
+      for (const vehicle of vehiclesToImport) {
+        await addDoc(collection(db, 'vehicles'), {
+          ...vehicle,
+          created_at: new Date().toISOString()
+        });
+      }
+      loadVehicles();
+    } catch (error) {
+      console.error('Error bulk importing vehicles:', error);
+      throw error;
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -198,13 +215,22 @@ export default function Vehicles() {
           <h1 className="text-3xl font-bold text-slate-900">Veículos</h1>
           <p className="text-slate-600 mt-2">Gerencie os veículos da sua frota</p>
         </div>
-        <button
-          onClick={() => openModal()}
-          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="h-5 w-5 mr-2" />
-          Adicionar Veículo
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setShowBulkImport(true)}
+            className="inline-flex items-center px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+          >
+            <Upload className="h-5 w-5 mr-2" />
+            Importar em Lote
+          </button>
+          <button
+            onClick={() => openModal()}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Adicionar Veículo
+          </button>
+        </div>
       </div>
 
       {vehicles.length === 0 && (
@@ -492,6 +518,13 @@ export default function Vehicles() {
             </form>
           </div>
         </div>
+      )}
+
+      {showBulkImport && (
+        <BulkVehicleImportModal
+          onClose={() => setShowBulkImport(false)}
+          onImport={handleBulkImport}
+        />
       )}
     </div>
   );
