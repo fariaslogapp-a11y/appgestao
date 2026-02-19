@@ -36,6 +36,7 @@ export interface Maintenance {
   cost: number;
   next_maintenance_km: number | null;
   notes: string;
+  status: 'in_progress' | 'completed';
   created_at: string;
 }
 
