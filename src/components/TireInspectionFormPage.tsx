@@ -145,6 +145,7 @@ export default function TireInspectionFormPage() {
         { id: 'TTI1', label: 'Pneu Traseiro Esquerdo Interno', x: 25, y: 75 },
         { id: 'TTE2', label: 'Pneu Traseiro Direito Externo', x: 75, y: 70 },
         { id: 'TTI2', label: 'Pneu Traseiro Direito Interno', x: 85, y: 75 },
+        { id: 'ESTEPE', label: 'Estepe', x: 50, y: 92 },
       ],
       toco: [
         { id: 'PDE1', label: 'Pneu Dianteiro Esquerdo', x: 20, y: 15 },
@@ -153,6 +154,7 @@ export default function TireInspectionFormPage() {
         { id: 'TTI1', label: 'Pneu Traseiro Esquerdo Interno', x: 25, y: 75 },
         { id: 'TTE2', label: 'Pneu Traseiro Direito Externo', x: 75, y: 70 },
         { id: 'TTI2', label: 'Pneu Traseiro Direito Interno', x: 85, y: 75 },
+        { id: 'ESTEPE', label: 'Estepe', x: 50, y: 92 },
       ],
       truck: [
         { id: 'PDE1', label: 'Pneu Dianteiro Esquerdo', x: 20, y: 10 },
@@ -165,6 +167,7 @@ export default function TireInspectionFormPage() {
         { id: 'T2I1', label: 'Pneu Traseiro 2 Esquerdo Interno', x: 25, y: 75 },
         { id: 'T2E2', label: 'Pneu Traseiro 2 Direito Externo', x: 75, y: 70 },
         { id: 'T2I2', label: 'Pneu Traseiro 2 Direito Interno', x: 85, y: 75 },
+        { id: 'ESTEPE', label: 'Estepe', x: 50, y: 92 },
       ],
       bitruck: [
         { id: 'PDE1', label: 'Pneu Dianteiro 1 Esquerdo', x: 20, y: 8 },
@@ -179,6 +182,7 @@ export default function TireInspectionFormPage() {
         { id: 'T2I1', label: 'Pneu Traseiro 2 Esquerdo Interno', x: 25, y: 75 },
         { id: 'T2E2', label: 'Pneu Traseiro 2 Direito Externo', x: 75, y: 70 },
         { id: 'T2I2', label: 'Pneu Traseiro 2 Direito Interno', x: 85, y: 75 },
+        { id: 'ESTEPE', label: 'Estepe', x: 50, y: 92 },
       ],
       cavalo: [
         { id: 'PDE1', label: 'Pneu Dianteiro Esquerdo', x: 20, y: 10 },
@@ -191,6 +195,7 @@ export default function TireInspectionFormPage() {
         { id: 'T2I1', label: 'Pneu Traseiro 2 Esquerdo Interno', x: 25, y: 75 },
         { id: 'T2E2', label: 'Pneu Traseiro 2 Direito Externo', x: 75, y: 70 },
         { id: 'T2I2', label: 'Pneu Traseiro 2 Direito Interno', x: 85, y: 75 },
+        { id: 'ESTEPE', label: 'Estepe', x: 50, y: 92 },
       ],
       carreta: [
         { id: 'T1E1', label: 'Eixo 1 Esquerdo Externo', x: 15, y: 20 },
@@ -205,12 +210,14 @@ export default function TireInspectionFormPage() {
         { id: 'T3I1', label: 'Eixo 3 Esquerdo Interno', x: 25, y: 75 },
         { id: 'T3E2', label: 'Eixo 3 Direito Externo', x: 75, y: 70 },
         { id: 'T3I2', label: 'Eixo 3 Direito Interno', x: 85, y: 75 },
+        { id: 'ESTEPE', label: 'Estepe', x: 50, y: 92 },
       ],
       carro: [
         { id: 'PDE', label: 'Pneu Dianteiro Esquerdo', x: 20, y: 25 },
         { id: 'PDD', label: 'Pneu Dianteiro Direito', x: 80, y: 25 },
         { id: 'PTE', label: 'Pneu Traseiro Esquerdo', x: 20, y: 75 },
         { id: 'PTD', label: 'Pneu Traseiro Direito', x: 80, y: 75 },
+        { id: 'ESTEPE', label: 'Estepe', x: 50, y: 92 },
       ],
     };
 
@@ -463,6 +470,12 @@ export default function TireInspectionFormPage() {
                         <div className="w-4 h-4 bg-blue-600 rounded-full"></div>
                         <span className="text-sm text-slate-600">Selecionado</span>
                       </div>
+                    </div>
+
+                    <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-xs text-amber-800">
+                        <strong>Estepe:</strong> O pneu estepe aparece na parte inferior do diagrama.
+                      </p>
                     </div>
                   </div>
 
