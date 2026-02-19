@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { db } from '../lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import { Truck, Calendar, Wrench, TrendingUp } from 'lucide-react';
+import { Truck, Calendar, Wrench, TrendingUp, X } from 'lucide-react';
+import type { Vehicle } from '../types';
 
 interface Stats {
   totalVehicles: number;
@@ -10,6 +11,16 @@ interface Stats {
   upcomingTrips: number;
   completedTrips: number;
   totalMaintenances: number;
+}
+
+interface VehicleTypeStats {
+  type: string;
+  displayName: string;
+  total: number;
+  available: number;
+  maintenance: number;
+  inactive: number;
+  vehicles: Vehicle[];
 }
 
 export default function Dashboard() {
@@ -21,6 +32,9 @@ export default function Dashboard() {
     completedTrips: 0,
     totalMaintenances: 0,
   });
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehicleTypeStats, setVehicleTypeStats] = useState<VehicleTypeStats[]>([]);
+  const [selectedType, setSelectedType] = useState<VehicleTypeStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,23 +49,63 @@ export default function Dashboard() {
         getDocs(collection(db, 'maintenances')),
       ]);
 
-      const vehicles = vehiclesSnap.docs.map(doc => doc.data());
+      const vehiclesData = vehiclesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vehicle));
       const trips = tripsSnap.docs.map(doc => doc.data());
       const maintenances = maintenancesSnap.docs;
 
+      setVehicles(vehiclesData);
+
       setStats({
-        totalVehicles: vehicles.length,
-        activeVehicles: vehicles.filter((v: any) => v.status === 'active').length,
-        maintenanceVehicles: vehicles.filter((v: any) => v.status === 'maintenance').length,
+        totalVehicles: vehiclesData.length,
+        activeVehicles: vehiclesData.filter((v: any) => v.status === 'active').length,
+        maintenanceVehicles: vehiclesData.filter((v: any) => v.status === 'maintenance').length,
         upcomingTrips: trips.filter((t: any) => t.status === 'planned' || t.status === 'in_progress').length,
         completedTrips: trips.filter((t: any) => t.status === 'completed').length,
         totalMaintenances: maintenances.length,
       });
+
+      calculateVehicleTypeStats(vehiclesData);
     } catch (error) {
       console.error('Error loading stats:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const calculateVehicleTypeStats = (vehiclesData: Vehicle[]) => {
+    const typeMap: Record<string, { vehicles: Vehicle[]; displayName: string }> = {};
+
+    vehiclesData.forEach(vehicle => {
+      let typeKey = vehicle.type;
+      let displayName = vehicle.type.toUpperCase();
+
+      if (vehicle.type === 'cavalo' && vehicle.coupled_vehicle_id) {
+        typeKey = 'cavalo-carreta';
+        displayName = 'CAVALO/CARRETA';
+      } else if (vehicle.type === 'carreta' && !vehicle.coupled_vehicle_id) {
+        return;
+      }
+
+      if (!typeMap[typeKey]) {
+        typeMap[typeKey] = { vehicles: [], displayName };
+      }
+
+      typeMap[typeKey].vehicles.push(vehicle);
+    });
+
+    const stats: VehicleTypeStats[] = Object.entries(typeMap).map(([type, data]) => ({
+      type,
+      displayName: data.displayName,
+      total: data.vehicles.length,
+      available: data.vehicles.filter(v => v.status === 'active').length,
+      maintenance: data.vehicles.filter(v => v.status === 'maintenance').length,
+      inactive: data.vehicles.filter(v => v.status === 'inactive').length,
+      vehicles: data.vehicles,
+    }));
+
+    stats.sort((a, b) => b.total - a.total);
+
+    setVehicleTypeStats(stats);
   };
 
   const statCards = [
@@ -89,6 +143,25 @@ export default function Dashboard() {
     );
   }
 
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case 'carro':
+        return 'bg-blue-500';
+      case '3/4':
+        return 'bg-green-500';
+      case 'toco':
+        return 'bg-yellow-500';
+      case 'truck':
+        return 'bg-orange-500';
+      case 'bitruck':
+        return 'bg-red-500';
+      case 'cavalo-carreta':
+        return 'bg-slate-500';
+      default:
+        return 'bg-slate-400';
+    }
+  };
+
   return (
     <div>
       <div className="mb-8">
@@ -116,6 +189,58 @@ export default function Dashboard() {
             </div>
           );
         })}
+      </div>
+
+      <div className="mb-8">
+        <h2 className="text-xl font-bold text-slate-900 mb-4">Veículos por Tipo</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {vehicleTypeStats.map((typeStats) => (
+            <button
+              key={typeStats.type}
+              onClick={() => setSelectedType(typeStats)}
+              className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 hover:shadow-md transition-shadow text-left"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-slate-900">{typeStats.displayName}</h3>
+                <div className={`${getTypeColor(typeStats.type)} p-2 rounded-lg`}>
+                  <Truck className="h-5 w-5 text-white" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-600">Total</span>
+                  <span className="text-lg font-bold text-slate-900">{typeStats.total}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-600">Disponíveis</span>
+                  <span className="text-sm font-semibold text-green-600">{typeStats.available}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-600">Em Manutenção</span>
+                  <span className="text-sm font-semibold text-orange-600">{typeStats.maintenance}</span>
+                </div>
+                {typeStats.inactive > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-slate-600">Inativos</span>
+                    <span className="text-sm font-semibold text-slate-600">{typeStats.inactive}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-200">
+                <p className="text-xs text-blue-600 font-medium">Clique para ver detalhes</p>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {vehicleTypeStats.length === 0 && (
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-12 text-center">
+            <Truck className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+            <p className="text-slate-600">Nenhum veículo cadastrado</p>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -147,6 +272,140 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {selectedType && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-6 border-b border-slate-200 sticky top-0 bg-white">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">{selectedType.displayName}</h2>
+                <p className="text-slate-600 mt-1">
+                  {selectedType.total} veículo{selectedType.total !== 1 ? 's' : ''} cadastrado{selectedType.total !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedType(null)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {selectedType.available > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-green-700 mb-3 flex items-center gap-2">
+                    <div className="w-3 h-3 bg-green-600 rounded-full"></div>
+                    Disponíveis ({selectedType.available})
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {selectedType.vehicles
+                      .filter(v => v.status === 'active')
+                      .map(vehicle => (
+                        <div
+                          key={vehicle.id}
+                          className="bg-green-50 border border-green-200 rounded-lg p-4"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-lg font-bold text-green-900">{vehicle.plate}</p>
+                              <p className="text-sm text-green-700">
+                                {vehicle.brand} {vehicle.model}
+                              </p>
+                              {vehicle.year && (
+                                <p className="text-xs text-green-600 mt-1">Ano: {vehicle.year}</p>
+                              )}
+                              {vehicle.coupled_vehicle_id && (
+                                <p className="text-xs text-green-600 mt-1">
+                                  Acoplado: {vehicles.find(v => v.id === vehicle.coupled_vehicle_id)?.plate || 'N/A'}
+                                </p>
+                              )}
+                            </div>
+                            <Truck className="h-6 w-6 text-green-600" />
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedType.maintenance > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-orange-700 mb-3 flex items-center gap-2">
+                    <div className="w-3 h-3 bg-orange-600 rounded-full"></div>
+                    Em Manutenção ({selectedType.maintenance})
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {selectedType.vehicles
+                      .filter(v => v.status === 'maintenance')
+                      .map(vehicle => (
+                        <div
+                          key={vehicle.id}
+                          className="bg-orange-50 border border-orange-200 rounded-lg p-4"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-lg font-bold text-orange-900">{vehicle.plate}</p>
+                              <p className="text-sm text-orange-700">
+                                {vehicle.brand} {vehicle.model}
+                              </p>
+                              {vehicle.year && (
+                                <p className="text-xs text-orange-600 mt-1">Ano: {vehicle.year}</p>
+                              )}
+                              {vehicle.coupled_vehicle_id && (
+                                <p className="text-xs text-orange-600 mt-1">
+                                  Acoplado: {vehicles.find(v => v.id === vehicle.coupled_vehicle_id)?.plate || 'N/A'}
+                                </p>
+                              )}
+                            </div>
+                            <Wrench className="h-6 w-6 text-orange-600" />
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedType.inactive > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                    <div className="w-3 h-3 bg-slate-600 rounded-full"></div>
+                    Inativos ({selectedType.inactive})
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {selectedType.vehicles
+                      .filter(v => v.status === 'inactive')
+                      .map(vehicle => (
+                        <div
+                          key={vehicle.id}
+                          className="bg-slate-50 border border-slate-200 rounded-lg p-4"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-lg font-bold text-slate-900">{vehicle.plate}</p>
+                              <p className="text-sm text-slate-700">
+                                {vehicle.brand} {vehicle.model}
+                              </p>
+                              {vehicle.year && (
+                                <p className="text-xs text-slate-600 mt-1">Ano: {vehicle.year}</p>
+                              )}
+                              {vehicle.coupled_vehicle_id && (
+                                <p className="text-xs text-slate-600 mt-1">
+                                  Acoplado: {vehicles.find(v => v.id === vehicle.coupled_vehicle_id)?.plate || 'N/A'}
+                                </p>
+                              )}
+                            </div>
+                            <Truck className="h-6 w-6 text-slate-600" />
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
