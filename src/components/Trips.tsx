@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { db } from '../lib/firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy } from 'firebase/firestore';
-import { Plus, Edit2, Trash2, X, MapPin, Calendar, DollarSign, FileText, Download } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, MapPin, Calendar, DollarSign, FileText, Download, Upload } from 'lucide-react';
 import { formatDateLocal, getDateWithTimezoneOffset } from '../utils/dateUtils';
 import { exportToExcel } from '../utils/excelExport';
+import BulkTripImportModal from './BulkTripImportModal';
 
 import type { Trip, Vehicle, Driver } from '../types';
 
@@ -17,6 +18,7 @@ export default function Trips() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
@@ -242,6 +244,21 @@ export default function Trips() {
     exportToExcel(exportData, `viagens-${filterLabel}.csv`);
   };
 
+  const handleBulkImport = async (tripsToImport: Array<Omit<Trip, 'id' | 'created_at'>>) => {
+    try {
+      for (const trip of tripsToImport) {
+        await addDoc(collection(db, 'trips'), {
+          ...trip,
+          created_at: new Date().toISOString()
+        });
+      }
+      loadData();
+    } catch (error) {
+      console.error('Error bulk importing trips:', error);
+      throw error;
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -269,6 +286,13 @@ export default function Trips() {
           >
             <Download className="h-5 w-5 mr-2" />
             Exportar Excel
+          </button>
+          <button
+            onClick={() => setShowBulkImport(true)}
+            className="inline-flex items-center px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+          >
+            <Upload className="h-5 w-5 mr-2" />
+            Importar em Lote
           </button>
           <button
             onClick={() => openModal()}
@@ -407,6 +431,15 @@ export default function Trips() {
           </div>
         )}
       </div>
+
+      {showBulkImport && (
+        <BulkTripImportModal
+          onClose={() => setShowBulkImport(false)}
+          onImport={handleBulkImport}
+          drivers={drivers}
+          vehicles={vehicles}
+        />
+      )}
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
