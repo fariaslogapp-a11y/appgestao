@@ -118,22 +118,19 @@ export default function TireInspectionFormPage() {
       return;
     }
 
-    if (!driverCpf.trim()) {
-      setVerifyError('CPF é obrigatório');
-      return;
-    }
-
     if (driverName.trim().toLowerCase() !== form?.driver_name.toLowerCase()) {
       setVerifyError('Nome não corresponde ao registrado');
       return;
     }
 
-    const cleanCpf = driverCpf.replace(/\D/g, '');
-    const formCpf = form?.driver_cpf.replace(/\D/g, '');
+    if (driverCpf.trim()) {
+      const cleanCpf = driverCpf.replace(/\D/g, '');
+      const formCpf = form?.driver_cpf.replace(/\D/g, '');
 
-    if (cleanCpf !== formCpf) {
-      setVerifyError('CPF não corresponde ao registrado');
-      return;
+      if (cleanCpf !== formCpf) {
+        setVerifyError('CPF não corresponde ao registrado');
+        return;
+      }
     }
 
     setStep('form');
@@ -314,7 +311,7 @@ export default function TireInspectionFormPage() {
           <form onSubmit={handleVerify} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Nome
+                Responsável
               </label>
               <input
                 type="text"
@@ -327,7 +324,7 @@ export default function TireInspectionFormPage() {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                CPF
+                CPF <span className="text-slate-500 text-xs">(opcional)</span>
               </label>
               <input
                 type="text"
