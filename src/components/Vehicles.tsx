@@ -376,6 +376,7 @@ export default function Vehicles() {
                     onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
+                    <option value="carro">Carro</option>
                     <option value="3/4">3/4</option>
                     <option value="toco">Toco</option>
                     <option value="truck">Truck</option>
