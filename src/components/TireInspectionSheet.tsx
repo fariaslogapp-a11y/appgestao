@@ -499,17 +499,31 @@ export default function TireInspectionSheet() {
                           <td className="px-4 py-3 text-sm">
                             <div className="flex gap-2">
                               {form.status === 'pending' && (
-                                <button
-                                  onClick={() => handleCopyFormLink(form.token, form.id)}
-                                  className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg transition-colors ${
-                                    copiedFormLink === form.id
-                                      ? 'bg-green-100 text-green-700'
-                                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                                  }`}
-                                >
-                                  <Copy className="h-4 w-4" />
-                                  {copiedFormLink === form.id ? 'Copiado!' : 'Copiar Link'}
-                                </button>
+                                <>
+                                  <button
+                                    onClick={() => handleCopyFormLink(form.token, form.id)}
+                                    className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg transition-colors ${
+                                      copiedFormLink === form.id
+                                        ? 'bg-green-100 text-green-700'
+                                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                    }`}
+                                  >
+                                    <Copy className="h-4 w-4" />
+                                    {copiedFormLink === form.id ? 'Copiado!' : 'Copiar Link'}
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteForm(form.id)}
+                                    className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg transition-colors ${
+                                      deleteConfirm === form.id
+                                        ? 'bg-red-200 text-red-800 hover:bg-red-300'
+                                        : 'bg-red-100 text-red-700 hover:bg-red-200'
+                                    }`}
+                                    disabled={deletingFormId === form.id}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    {deleteConfirm === form.id ? 'Confirmar?' : 'Deletar'}
+                                  </button>
+                                </>
                               )}
                               {form.status === 'completed' && (
                                 <>
