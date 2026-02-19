@@ -46,6 +46,7 @@ export default function CommissionRanking() {
   const [showManualModal, setShowManualModal] = useState(false);
   const [manualForm, setManualForm] = useState({
     driver_id: '',
+    driver_name: '',
     description: '',
     origin: '',
     commission_value: 0,
@@ -132,7 +133,8 @@ export default function CommissionRanking() {
 
     manualCommissions.forEach(manual => {
       const existing = summaryMap.get(manual.driver_id);
-      const driverName = drivers.find(d => d.id === manual.driver_id)?.name || 'N/A';
+      const driver = drivers.find(d => d.id === manual.driver_id);
+      const driverName = driver?.name || manual.driver_id || 'N/A';
 
       if (existing) {
         existing.totalCommission += manual.commission_value;
@@ -211,12 +213,9 @@ export default function CommissionRanking() {
   const handleExportExcel = () => {
     if (view === 'summary') {
       const summaries = getDriverSummaries();
-      const exportData = summaries.map(summary => ({
+      const exportData = summaries.map((summary, index) => ({
+        'Rank': index + 1,
         'Motorista': summary.driverName,
-        'Quantidade de Viagens': summary.tripCount,
-        'Valor Total de Fretes': `R$ ${summary.totalFreight.toFixed(2)}`,
-        'Comissões de Viagens': `R$ ${(summary.totalCommission - summary.manualCommissions).toFixed(2)}`,
-        'Comissões Manuais': `R$ ${summary.manualCommissions.toFixed(2)}`,
         'Total de Comissão': `R$ ${summary.totalCommission.toFixed(2)}`,
       }));
 
@@ -224,18 +223,37 @@ export default function CommissionRanking() {
       exportToExcel(exportData, `comissoes-resumo-${monthName}.csv`);
     } else {
       const filteredTrips = getFilteredTrips();
-      const exportData = filteredTrips.map(trip => ({
-        'Data da Viagem': formatDateLocal(trip.departure_date),
-        'Motorista': trip.driverName,
+      const selectedDriverManualCommissions = selectedDriver
+        ? manualCommissions.filter(m => m.driver_id === selectedDriver)
+        : [];
+
+      const tripExportData = filteredTrips.map(trip => ({
+        'Tipo': 'Viagem',
+        'Data': formatDateLocal(trip.departure_date),
         'Origem': trip.origin,
         'Destino': trip.destination,
         'Placa': trip.vehiclePlate,
-        'Valor': `R$ ${Number(trip.freight_value).toFixed(2)}`,
+        'Descrição': `${trip.origin} → ${trip.destination}`,
         'Comissão': `R$ ${Number(trip.driver_commission).toFixed(2)}`,
       }));
 
+      const manualExportData = selectedDriverManualCommissions.map(manual => ({
+        'Tipo': 'Comissão Manual',
+        'Data': formatDateLocal(manual.date),
+        'Origem': manual.origin || '-',
+        'Destino': '-',
+        'Placa': '-',
+        'Descrição': manual.description,
+        'Comissão': `R$ ${Number(manual.commission_value).toFixed(2)}`,
+      }));
+
+      const exportData = [...tripExportData, ...manualExportData];
+
       const monthName = currentMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-      exportToExcel(exportData, `comissoes-detalhes-${monthName}.csv`);
+      const driverName = selectedDriver
+        ? drivers.find(d => d.id === selectedDriver)?.name.replace(/\s+/g, '-') || 'motorista'
+        : 'filtrado';
+      exportToExcel(exportData, `comissoes-detalhes-${driverName}-${monthName}.csv`);
     }
   };
 
@@ -288,19 +306,26 @@ export default function CommissionRanking() {
 
   const handleSaveManual = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!manualForm.driver_id || !manualForm.description.trim() || manualForm.commission_value <= 0) {
+    const driverIdentifier = manualForm.driver_id || manualForm.driver_name.trim();
+    if (!driverIdentifier || !manualForm.description.trim() || manualForm.commission_value <= 0) {
       alert('Preencha todos os campos corretamente');
       return;
     }
 
     try {
       await addDoc(collection(db, 'manual_commissions'), {
-        ...manualForm,
+        driver_id: manualForm.driver_id || manualForm.driver_name.trim(),
+        description: manualForm.description,
+        origin: manualForm.origin,
+        commission_value: manualForm.commission_value,
+        notes: manualForm.notes,
+        date: manualForm.date,
         created_at: new Date().toISOString(),
       });
       setShowManualModal(false);
       setManualForm({
         driver_id: '',
+        driver_name: '',
         description: '',
         origin: '',
         commission_value: 0,
@@ -330,8 +355,11 @@ export default function CommissionRanking() {
 
   const driverSummaries = getDriverSummaries();
   const filteredTrips = getFilteredTrips();
-  const totalCommission = filteredTrips.reduce((sum, trip) => sum + (trip.driver_commission || 0), 0) +
-    (selectedDriver ? manualCommissions.filter(m => m.driver_id === selectedDriver).reduce((sum, m) => sum + m.commission_value, 0) : 0);
+
+  const totalCommission = view === 'summary'
+    ? driverSummaries.reduce((sum, summary) => sum + summary.totalCommission, 0)
+    : filteredTrips.reduce((sum, trip) => sum + (trip.driver_commission || 0), 0) +
+      (selectedDriver ? manualCommissions.filter(m => m.driver_id === selectedDriver).reduce((sum, m) => sum + m.commission_value, 0) : 0);
 
   useEffect(() => {
     if (hasActiveFilters) {
@@ -727,9 +755,9 @@ export default function CommissionRanking() {
                 <p className="text-slate-600">Nenhuma comissão registrada para este mês</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-slate-900">Resumo por Motorista</h3>
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-lg font-semibold text-slate-900">Ranking de Comissões</h3>
                   <button
                     onClick={handleExportExcel}
                     className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
@@ -738,58 +766,49 @@ export default function CommissionRanking() {
                     Exportar Excel
                   </button>
                 </div>
-                {driverSummaries.map((summary, index) => (
-                  <div
-                    key={summary.driverId}
-                    className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="flex items-center justify-center w-10 h-10 bg-blue-100 text-blue-600 rounded-full font-bold">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {driverSummaries.map((summary, index) => (
+                    <div
+                      key={summary.driverId}
+                      className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`flex items-center justify-center w-12 h-12 rounded-full font-bold text-lg ${
+                            index === 0 ? 'bg-yellow-100 text-yellow-700' :
+                            index === 1 ? 'bg-slate-200 text-slate-700' :
+                            index === 2 ? 'bg-orange-100 text-orange-700' :
+                            'bg-blue-100 text-blue-600'
+                          }`}>
                             {index + 1}
                           </div>
                           <div>
-                            <h4 className="text-xl font-bold text-slate-900">{summary.driverName}</h4>
-                            <p className="text-sm text-slate-600">{summary.tripCount} viagens no mês</p>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-3 gap-4 mt-4">
-                          <div className="bg-slate-50 rounded-lg p-3">
-                            <p className="text-sm text-slate-600 mb-1">Valor de Fretes</p>
-                            <p className="text-lg font-semibold text-slate-900">
-                              R$ {summary.totalFreight.toFixed(2)}
-                            </p>
-                          </div>
-                          <div className="bg-blue-50 rounded-lg p-3">
-                            <p className="text-sm text-blue-700 mb-1">Comissões Manuais</p>
-                            <p className="text-lg font-semibold text-blue-600">
-                              R$ {summary.manualCommissions.toFixed(2)}
-                            </p>
-                          </div>
-                          <div className="bg-green-50 rounded-lg p-3">
-                            <p className="text-sm text-green-700 mb-1">Total de Comissão</p>
-                            <p className="text-2xl font-bold text-green-600">
-                              R$ {summary.totalCommission.toFixed(2)}
-                            </p>
+                            <h4 className="text-lg font-bold text-slate-900">{summary.driverName}</h4>
+                            <p className="text-xs text-slate-600">{summary.tripCount} viagens</p>
                           </div>
                         </div>
                       </div>
+                      <div className="bg-green-50 rounded-lg p-4 mb-4">
+                        <p className="text-sm text-green-700 mb-1">Total de Comissão</p>
+                        <p className="text-2xl font-bold text-green-600">
+                          R$ {summary.totalCommission.toFixed(2)}
+                        </p>
+                      </div>
                       <button
                         onClick={() => handleViewDetails(summary.driverId)}
-                        className="ml-6 inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        className="w-full inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                       >
                         Ver Detalhes
                         <ChevronRight className="h-5 w-5 ml-1" />
                       </button>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )
           ) : (
             <div>
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => {
@@ -802,7 +821,7 @@ export default function CommissionRanking() {
                   </button>
                   {selectedDriver && (
                     <div className="text-sm text-slate-600">
-                      Mostrando viagens de: <span className="font-semibold text-slate-900">
+                      Mostrando dados de: <span className="font-semibold text-slate-900">
                         {drivers.find(d => d.id === selectedDriver)?.name}
                       </span>
                     </div>
@@ -810,9 +829,9 @@ export default function CommissionRanking() {
                 </div>
                 <button
                   onClick={handleExportExcel}
-                  disabled={filteredTrips.length === 0}
+                  disabled={filteredTrips.length === 0 && (!selectedDriver || manualCommissions.filter(m => m.driver_id === selectedDriver).length === 0)}
                   className={`inline-flex items-center px-4 py-2 rounded-lg transition-colors ${
-                    filteredTrips.length > 0
+                    filteredTrips.length > 0 || (selectedDriver && manualCommissions.filter(m => m.driver_id === selectedDriver).length > 0)
                       ? 'bg-green-600 text-white hover:bg-green-700'
                       : 'bg-slate-300 text-slate-500 cursor-not-allowed'
                   }`}
@@ -822,61 +841,23 @@ export default function CommissionRanking() {
                 </button>
               </div>
 
-              {filteredTrips.length === 0 && !selectedDriver ? (
+              {filteredTrips.length === 0 && (!selectedDriver || manualCommissions.filter(m => m.driver_id === selectedDriver).length === 0) ? (
                 <div className="text-center py-12 bg-white rounded-lg border border-slate-200">
                   <TrendingUp className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-                  <p className="text-slate-600">Nenhuma viagem encontrada com os filtros aplicados</p>
+                  <p className="text-slate-600">Nenhuma comissão encontrada com os filtros aplicados</p>
                 </div>
               ) : (
-                <>
+                <div className="space-y-6">
                   {selectedDriver && manualCommissions.filter(m => m.driver_id === selectedDriver).length > 0 && (
-                    <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden mb-6">
-                      <div className="bg-blue-50 px-6 py-3 border-b border-blue-200">
-                        <h3 className="font-semibold text-blue-900">Comissões Manuais</h3>
-                      </div>
-                      <table className="min-w-full divide-y divide-slate-200">
-                        <thead className="bg-slate-50">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                              Data
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                              Descrição
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                              Origem
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                              Comissão
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-slate-200">
-                          {manualCommissions.filter(m => m.driver_id === selectedDriver).map((manual) => (
-                            <tr key={manual.id} className="hover:bg-slate-50">
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
-                                {formatDateLocal(manual.date)}
-                              </td>
-                              <td className="px-6 py-4 text-sm text-slate-600">
-                                {manual.description}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                                {manual.origin || '-'}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600">
-                                R$ {Number(manual.commission_value).toFixed(2)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {filteredTrips.length > 0 && (
                     <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-                      <div className="bg-slate-50 px-6 py-3 border-b border-slate-200">
-                        <h3 className="font-semibold text-slate-900">Comissões de Viagens</h3>
+                      <div className="bg-blue-50 px-6 py-4 border-b border-blue-200 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <DollarSign className="h-5 w-5 text-blue-700" />
+                          <h3 className="font-semibold text-blue-900">Comissões Manuais</h3>
+                        </div>
+                        <div className="text-sm font-semibold text-blue-900">
+                          Total: R$ {manualCommissions.filter(m => m.driver_id === selectedDriver).reduce((sum, m) => sum + m.commission_value, 0).toFixed(2)}
+                        </div>
                       </div>
                       <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-slate-200">
@@ -886,8 +867,62 @@ export default function CommissionRanking() {
                                 Data
                               </th>
                               <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                                Motorista
+                                Descrição
                               </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
+                                Origem
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
+                                Comissão
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-slate-200">
+                            {manualCommissions.filter(m => m.driver_id === selectedDriver).map((manual) => (
+                              <tr key={manual.id} className="hover:bg-slate-50">
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
+                                  {formatDateLocal(manual.date)}
+                                </td>
+                                <td className="px-6 py-4 text-sm text-slate-600">
+                                  {manual.description}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                                  {manual.origin || '-'}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600">
+                                  R$ {Number(manual.commission_value).toFixed(2)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {filteredTrips.length > 0 && (
+                    <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+                      <div className="bg-green-50 px-6 py-4 border-b border-green-200 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="h-5 w-5 text-green-700" />
+                          <h3 className="font-semibold text-green-900">Comissões de Viagens</h3>
+                        </div>
+                        <div className="text-sm font-semibold text-green-900">
+                          Total: R$ {filteredTrips.reduce((sum, trip) => sum + (trip.driver_commission || 0), 0).toFixed(2)}
+                        </div>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-slate-200">
+                          <thead className="bg-slate-50">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
+                                Data
+                              </th>
+                              {!selectedDriver && (
+                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
+                                  Motorista
+                                </th>
+                              )}
                               <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
                                 Origem
                               </th>
@@ -896,9 +931,6 @@ export default function CommissionRanking() {
                               </th>
                               <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
                                 Placa
-                              </th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                                Valor
                               </th>
                               <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
                                 Comissão
@@ -911,9 +943,11 @@ export default function CommissionRanking() {
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
                                   {formatDateLocal(trip.departure_date)}
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
-                                  {trip.driverName}
-                                </td>
+                                {!selectedDriver && (
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                                    {trip.driverName}
+                                  </td>
+                                )}
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
                                   {trip.origin}
                                 </td>
@@ -922,9 +956,6 @@ export default function CommissionRanking() {
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
                                   {trip.vehiclePlate}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
-                                  R$ {Number(trip.freight_value).toFixed(2)}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
                                   R$ {Number(trip.driver_commission).toFixed(2)}
@@ -936,7 +967,7 @@ export default function CommissionRanking() {
                       </div>
                     </div>
                   )}
-                </>
+                </div>
               )}
             </div>
           )}
@@ -1037,6 +1068,7 @@ export default function CommissionRanking() {
                   setShowManualModal(false);
                   setManualForm({
                     driver_id: '',
+                    driver_name: '',
                     description: '',
                     origin: '',
                     commission_value: 0,
@@ -1052,22 +1084,38 @@ export default function CommissionRanking() {
 
             <form onSubmit={handleSaveManual} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
                   Motorista *
                 </label>
-                <select
-                  required
-                  value={manualForm.driver_id}
-                  onChange={(e) => setManualForm({ ...manualForm, driver_id: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">Selecione um motorista</option>
-                  {drivers.map((driver) => (
-                    <option key={driver.id} value={driver.id}>
-                      {driver.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="space-y-2">
+                  <select
+                    value={manualForm.driver_id}
+                    onChange={(e) => setManualForm({ ...manualForm, driver_id: e.target.value, driver_name: '' })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Selecione um motorista cadastrado</option>
+                    {drivers.map((driver) => (
+                      <option key={driver.id} value={driver.id}>
+                        {driver.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-px bg-slate-300"></div>
+                    <span className="text-xs text-slate-600 px-2">OU</span>
+                    <div className="flex-1 h-px bg-slate-300"></div>
+                  </div>
+                  <input
+                    type="text"
+                    value={manualForm.driver_name}
+                    onChange={(e) => setManualForm({ ...manualForm, driver_name: e.target.value, driver_id: '' })}
+                    placeholder="Digite o nome do motorista"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                {!manualForm.driver_id && !manualForm.driver_name.trim() && (
+                  <p className="text-xs text-red-600 mt-1">Selecione ou digite um motorista</p>
+                )}
               </div>
 
               <div>
@@ -1146,6 +1194,7 @@ export default function CommissionRanking() {
                     setShowManualModal(false);
                     setManualForm({
                       driver_id: '',
+                      driver_name: '',
                       description: '',
                       origin: '',
                       commission_value: 0,
