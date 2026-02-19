@@ -60,6 +60,7 @@ export default function BulkVehicleImportModal({
 
   const normalizeType = (type: string): string | null => {
     const typeMap: Record<string, string> = {
+      'carro': 'carro',
       '3/4': '3/4',
       'toco': 'toco',
       'truck': 'truck',
@@ -83,7 +84,7 @@ export default function BulkVehicleImportModal({
 
       const normalizedType = normalizeType(vehicle.type);
       if (!normalizedType) {
-        errors.push('Tipo inválido (deve ser: 3/4, toco, truck, bitruck, cavalo ou carreta)');
+        errors.push('Tipo inválido (deve ser: carro, 3/4, toco, truck, bitruck, cavalo ou carreta)');
       }
 
       if (!vehicle.model?.trim()) {
@@ -207,7 +208,7 @@ export default function BulkVehicleImportModal({
             <div className="mt-3 p-2 bg-blue-100 rounded text-xs">
               <p className="font-semibold mb-1">Formato esperado:</p>
               <p>PLACA: Placa do veículo</p>
-              <p>PORTE (TIPO): 3/4, toco, truck, bitruck, cavalo ou carreta</p>
+              <p>PORTE (TIPO): carro, 3/4, toco, truck, bitruck, cavalo ou carreta</p>
               <p>MODELO: Marca e modelo (ex: VW 11.180)</p>
               <p>ANO: Ano do veículo</p>
               <p>EQUIPAMENTO: Será salvo em Observações</p>
