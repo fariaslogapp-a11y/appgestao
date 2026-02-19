@@ -36,6 +36,7 @@ export default function BulkTripImportModal({
   const [hasHeader, setHasHeader] = useState(false);
   const [preview, setPreview] = useState<ImportPreview[]>([]);
   const [importing, setImporting] = useState(false);
+  const [departureDate, setDepartureDate] = useState(getDateWithTimezoneOffset());
 
   const parseTabularData = (data: string): ImportedTrip[] => {
     const lines = data.trim().split('\n');
@@ -146,7 +147,7 @@ export default function BulkTripImportModal({
       status: 'planned',
       origin: trip.origin,
       destination: trip.destination,
-      departure_date: getDateWithTimezoneOffset(),
+      departure_date: departureDate,
       arrival_date: null,
       freight_value: 0,
       driver_commission: null,
@@ -202,25 +203,39 @@ export default function BulkTripImportModal({
             </ol>
           </div>
 
-          <div className="space-y-2">
-            <label className="flex items-center space-x-2 cursor-pointer">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={hasHeader}
+                  onChange={(e) => {
+                    setHasHeader(e.target.checked);
+                    if (pastedData.trim()) {
+                      const parsed = parseTabularData(pastedData);
+                      const validated = validateTrips(parsed);
+                      setPreview(validated);
+                    }
+                  }}
+                  className="w-4 h-4 rounded border-slate-300"
+                />
+                <span className="text-sm font-medium text-slate-700">
+                  Incluir cabeçalho (primeira linha)
+                </span>
+              </label>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Data da Viagem
+              </label>
               <input
-                type="checkbox"
-                checked={hasHeader}
-                onChange={(e) => {
-                  setHasHeader(e.target.checked);
-                  if (pastedData.trim()) {
-                    const parsed = parseTabularData(pastedData);
-                    const validated = validateTrips(parsed);
-                    setPreview(validated);
-                  }
-                }}
-                className="w-4 h-4 rounded border-slate-300"
+                type="date"
+                value={departureDate}
+                onChange={(e) => setDepartureDate(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
-              <span className="text-sm font-medium text-slate-700">
-                Incluir cabeçalho (primeira linha)
-              </span>
-            </label>
+            </div>
           </div>
 
           <div>
