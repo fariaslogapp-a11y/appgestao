@@ -134,7 +134,7 @@ export default function CommissionRanking() {
     manualCommissions.forEach(manual => {
       const existing = summaryMap.get(manual.driver_id);
       const driver = drivers.find(d => d.id === manual.driver_id);
-      const driverName = driver?.name || manual.driver_id || 'N/A';
+      const driverName = driver?.name || manual.driver_id || '';
 
       if (existing) {
         existing.totalCommission += manual.commission_value;
@@ -594,7 +594,7 @@ export default function CommissionRanking() {
                         {formatDateLocal(manual.date)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
-                        {drivers.find(d => d.id === manual.driver_id)?.name || 'N/A'}
+                        {drivers.find(d => d.id === manual.driver_id)?.name || manual.driver_id}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600">
                         {manual.description}
