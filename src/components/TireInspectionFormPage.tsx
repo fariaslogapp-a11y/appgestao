@@ -206,6 +206,12 @@ export default function TireInspectionFormPage() {
         { id: 'T3E2', label: 'Eixo 3 Direito Externo', x: 75, y: 70 },
         { id: 'T3I2', label: 'Eixo 3 Direito Interno', x: 85, y: 75 },
       ],
+      carro: [
+        { id: 'PDE', label: 'Pneu Dianteiro Esquerdo', x: 20, y: 25 },
+        { id: 'PDD', label: 'Pneu Dianteiro Direito', x: 80, y: 25 },
+        { id: 'PTE', label: 'Pneu Traseiro Esquerdo', x: 20, y: 75 },
+        { id: 'PTD', label: 'Pneu Traseiro Direito', x: 80, y: 75 },
+      ],
     };
 
     return tireMap[vehicleType] || [];
