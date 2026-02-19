@@ -166,6 +166,7 @@ function TireInspectionTable({ type }: { type: string }) {
           { id: 'TTI1', label: 'Pneu Traseiro Esquerdo Interno' },
           { id: 'TTE2', label: 'Pneu Traseiro Direito Externo' },
           { id: 'TTI2', label: 'Pneu Traseiro Direito Interno' },
+          { id: 'ESTEPE', label: 'Estepe' },
         ];
       case 'toco':
         return [
@@ -175,6 +176,7 @@ function TireInspectionTable({ type }: { type: string }) {
           { id: 'TTI1', label: 'Pneu Traseiro Esquerdo Interno' },
           { id: 'TTE2', label: 'Pneu Traseiro Direito Externo' },
           { id: 'TTI2', label: 'Pneu Traseiro Direito Interno' },
+          { id: 'ESTEPE', label: 'Estepe' },
         ];
       case 'truck':
         return [
@@ -188,6 +190,7 @@ function TireInspectionTable({ type }: { type: string }) {
           { id: 'T2I1', label: 'Pneu Traseiro 2 Esquerdo Interno' },
           { id: 'T2E2', label: 'Pneu Traseiro 2 Direito Externo' },
           { id: 'T2I2', label: 'Pneu Traseiro 2 Direito Interno' },
+          { id: 'ESTEPE', label: 'Estepe' },
         ];
       case 'bitruck':
         return [
@@ -203,6 +206,7 @@ function TireInspectionTable({ type }: { type: string }) {
           { id: 'T2I1', label: 'Pneu Traseiro 2 Esquerdo Interno' },
           { id: 'T2E2', label: 'Pneu Traseiro 2 Direito Externo' },
           { id: 'T2I2', label: 'Pneu Traseiro 2 Direito Interno' },
+          { id: 'ESTEPE', label: 'Estepe' },
         ];
       case 'cavalo':
         return [
@@ -216,6 +220,7 @@ function TireInspectionTable({ type }: { type: string }) {
           { id: 'T2I1', label: 'Pneu Traseiro 2 Esquerdo Interno' },
           { id: 'T2E2', label: 'Pneu Traseiro 2 Direito Externo' },
           { id: 'T2I2', label: 'Pneu Traseiro 2 Direito Interno' },
+          { id: 'ESTEPE', label: 'Estepe' },
         ];
       case 'carreta':
         return [
@@ -231,6 +236,7 @@ function TireInspectionTable({ type }: { type: string }) {
           { id: 'T3I1', label: 'Eixo 3 Esquerdo Interno' },
           { id: 'T3E2', label: 'Eixo 3 Direito Externo' },
           { id: 'T3I2', label: 'Eixo 3 Direito Interno' },
+          { id: 'ESTEPE', label: 'Estepe' },
         ];
       case 'carro':
         return [
@@ -238,6 +244,7 @@ function TireInspectionTable({ type }: { type: string }) {
           { id: 'PDD', label: 'Pneu Dianteiro Direito' },
           { id: 'PTE', label: 'Pneu Traseiro Esquerdo' },
           { id: 'PTD', label: 'Pneu Traseiro Direito' },
+          { id: 'ESTEPE', label: 'Estepe' },
         ];
       default:
         return [];
