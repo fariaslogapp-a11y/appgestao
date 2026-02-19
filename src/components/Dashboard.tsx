@@ -82,8 +82,14 @@ export default function Dashboard() {
       if (vehicle.type === 'cavalo' && vehicle.coupled_vehicle_id) {
         typeKey = 'cavalo-carreta';
         displayName = 'CAVALO/CARRETA';
-      } else if (vehicle.type === 'carreta' && !vehicle.coupled_vehicle_id) {
+      } else if (vehicle.type === 'carreta' && vehicle.coupled_vehicle_id) {
         return;
+      } else if (vehicle.type === 'carreta' && !vehicle.coupled_vehicle_id) {
+        typeKey = 'carreta';
+        displayName = 'CARRETA';
+      } else if (vehicle.type === 'cavalo' && !vehicle.coupled_vehicle_id) {
+        typeKey = 'cavalo';
+        displayName = 'CAVALO';
       }
 
       if (!typeMap[typeKey]) {
