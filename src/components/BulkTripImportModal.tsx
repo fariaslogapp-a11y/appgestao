@@ -1,8 +1,10 @@
-import { useState } from 'react';
-import { X, AlertCircle, CheckCircle2, Upload } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, AlertCircle, CheckCircle2, Upload, DollarSign } from 'lucide-react';
+import { db } from '../lib/firebase';
+import { collection, getDocs, query } from 'firebase/firestore';
 import { getDateWithTimezoneOffset } from '../utils/dateUtils';
 
-import type { Trip, Driver, Vehicle } from '../types';
+import type { Trip, Driver, Vehicle, CommissionRule } from '../types';
 
 interface ImportedTrip {
   plate: string;
@@ -15,8 +17,10 @@ interface ImportedTrip {
 interface ImportPreview extends ImportedTrip {
   vehicleId?: string;
   driverId?: string;
-  status: 'valid' | 'warning' | 'error';
+  commission?: number;
+  status: 'valid' | 'warning' | 'error' | 'duplicate';
   message: string;
+  duplicateGroup?: string;
 }
 
 interface BulkTripImportModalProps {
@@ -37,6 +41,47 @@ export default function BulkTripImportModal({
   const [preview, setPreview] = useState<ImportPreview[]>([]);
   const [importing, setImporting] = useState(false);
   const [departureDate, setDepartureDate] = useState(getDateWithTimezoneOffset());
+  const [commissionRules, setCommissionRules] = useState<CommissionRule[]>([]);
+  const [loadingRules, setLoadingRules] = useState(true);
+
+  useEffect(() => {
+    loadCommissionRules();
+  }, []);
+
+  const loadCommissionRules = async () => {
+    try {
+      const q = query(collection(db, 'commission_rules'));
+      const querySnapshot = await getDocs(q);
+      const rules = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as CommissionRule));
+      setCommissionRules(rules);
+    } catch (error) {
+      console.error('Error loading commission rules:', error);
+    } finally {
+      setLoadingRules(false);
+    }
+  };
+
+  const findCommission = (origin: string, destination: string): number | null => {
+    const normalizeText = (text: string) => {
+      return text.trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    };
+
+    const normalizedOrigin = normalizeText(origin);
+    const normalizedDestination = normalizeText(destination);
+
+    const rule = commissionRules.find(rule => {
+      const ruleOrigin = normalizeText(rule.origin);
+      const ruleDestination = normalizeText(rule.destination);
+
+      return (ruleOrigin === normalizedOrigin && ruleDestination === normalizedDestination) ||
+             (ruleOrigin === normalizedDestination && ruleDestination === normalizedOrigin);
+    });
+
+    return rule ? rule.commission_value : null;
+  };
 
   const parseTabularData = (data: string): ImportedTrip[] => {
     const lines = data.trim().split('\n');
@@ -62,62 +107,126 @@ export default function BulkTripImportModal({
     return trips;
   };
 
-  const validateTrips = (trips: ImportedTrip[]): ImportPreview[] => {
-    return trips.map(trip => {
-      const vehicle = vehicles.find(
-        v => v.plate.toUpperCase() === trip.plate.toUpperCase()
-      );
-      const driver = drivers.find(
-        d => d.name.toUpperCase() === trip.driverName.toUpperCase()
-      );
+  const deduplicateAndValidateTrips = (trips: ImportedTrip[]): ImportPreview[] => {
+    const normalizeText = (text: string) => {
+      return text.trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    };
 
-      const errors: string[] = [];
-      const warnings: string[] = [];
+    const createGroupKey = (plate: string, driverName: string, origin: string) => {
+      return `${normalizeText(plate)}|${normalizeText(driverName)}|${normalizeText(origin)}`;
+    };
 
-      if (!vehicle) {
-        warnings.push('Veículo não encontrado');
+    const groupedTrips = new Map<string, ImportedTrip[]>();
+    trips.forEach(trip => {
+      const key = createGroupKey(trip.plate, trip.driverName, trip.origin);
+      if (!groupedTrips.has(key)) {
+        groupedTrips.set(key, []);
       }
+      groupedTrips.get(key)!.push(trip);
+    });
 
-      if (!driver) {
-        warnings.push('Motorista não cadastrado');
+    const result: ImportPreview[] = [];
+
+    groupedTrips.forEach((groupTrips, groupKey) => {
+      if (groupTrips.length === 1) {
+        const trip = groupTrips[0];
+        const preview = validateSingleTrip(trip, groupKey);
+        result.push(preview);
+      } else {
+        const bestTrip = selectBestTrip(groupTrips);
+        const preview = validateSingleTrip(bestTrip, groupKey);
+        const otherTrips = groupTrips.filter(t => t.rowIndex !== bestTrip.rowIndex);
+
+        result.push(preview);
+
+        otherTrips.forEach(trip => {
+          const otherPreview = validateSingleTrip(trip, groupKey);
+          otherPreview.status = 'duplicate';
+          otherPreview.message = `Duplicado (viagem mantida: linha ${bestTrip.rowIndex}). Comissão zerada.`;
+          otherPreview.commission = 0;
+          otherPreview.duplicateGroup = groupKey;
+          result.push(otherPreview);
+        });
       }
+    });
 
-      if (!trip.origin?.trim()) {
-        errors.push('Origem vazia');
-      }
+    return result;
+  };
 
-      if (!trip.destination?.trim()) {
-        errors.push('Destino vazio');
-      }
+  const selectBestTrip = (trips: ImportedTrip[]): ImportedTrip => {
+    const commissions = trips.map(trip => ({
+      trip,
+      commission: findCommission(trip.origin, trip.destination),
+    }));
 
-      if (errors.length > 0) {
-        return {
-          ...trip,
-          vehicleId: vehicle?.id,
-          driverId: driver?.id,
-          status: 'error',
-          message: errors.join(', '),
-        };
-      }
+    const maxCommission = Math.max(...commissions.map(c => c.commission || 0));
 
-      if (warnings.length > 0) {
-        return {
-          ...trip,
-          vehicleId: vehicle?.id,
-          driverId: driver?.id,
-          status: 'warning',
-          message: warnings.join(', '),
-        };
-      }
+    const tripWithMaxCommission = commissions.find(c => (c.commission || 0) === maxCommission);
+    return tripWithMaxCommission ? tripWithMaxCommission.trip : trips[0];
+  };
 
+  const validateSingleTrip = (trip: ImportedTrip, groupKey: string): ImportPreview => {
+    const vehicle = vehicles.find(
+      v => v.plate.toUpperCase() === trip.plate.toUpperCase()
+    );
+    const driver = drivers.find(
+      d => d.name.toUpperCase() === trip.driverName.toUpperCase()
+    );
+
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    if (!vehicle) {
+      warnings.push('Veículo não encontrado');
+    }
+
+    if (!driver) {
+      warnings.push('Motorista não cadastrado');
+    }
+
+    if (!trip.origin?.trim()) {
+      errors.push('Origem vazia');
+    }
+
+    if (!trip.destination?.trim()) {
+      errors.push('Destino vazio');
+    }
+
+    const commission = driver ? findCommission(trip.origin, trip.destination) : null;
+
+    if (errors.length > 0) {
       return {
         ...trip,
         vehicleId: vehicle?.id,
         driverId: driver?.id,
-        status: 'valid',
-        message: '',
+        commission: commission || undefined,
+        status: 'error',
+        message: errors.join(', '),
+        duplicateGroup: groupKey,
       };
-    });
+    }
+
+    if (warnings.length > 0) {
+      return {
+        ...trip,
+        vehicleId: vehicle?.id,
+        driverId: driver?.id,
+        commission: commission || undefined,
+        status: 'warning',
+        message: warnings.join(', '),
+        duplicateGroup: groupKey,
+      };
+    }
+
+    return {
+      ...trip,
+      vehicleId: vehicle?.id,
+      driverId: driver?.id,
+      commission: commission || undefined,
+      status: 'valid',
+      message: '',
+      duplicateGroup: groupKey,
+    };
   };
 
   const handlePaste = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -126,15 +235,15 @@ export default function BulkTripImportModal({
 
     if (data.trim()) {
       const parsed = parseTabularData(data);
-      const validated = validateTrips(parsed);
-      setPreview(validated);
+      const deduplicatedAndValidated = deduplicateAndValidateTrips(parsed);
+      setPreview(deduplicatedAndValidated);
     } else {
       setPreview([]);
     }
   };
 
   const handleImport = async () => {
-    const validTrips = preview.filter(p => p.status !== 'error');
+    const validTrips = preview.filter(p => p.status !== 'error' && p.status !== 'duplicate');
 
     if (validTrips.length === 0) {
       alert('Nenhuma viagem válida para importar');
@@ -150,7 +259,7 @@ export default function BulkTripImportModal({
       departure_date: departureDate,
       arrival_date: null,
       freight_value: 0,
-      driver_commission: null,
+      driver_commission: trip.commission || null,
       cte: '',
       nfe: '',
       pallet_term: '',
@@ -172,8 +281,22 @@ export default function BulkTripImportModal({
     }
   };
 
-  const validCount = preview.filter(p => p.status === 'valid' || p.status === 'warning').length;
+  const validCount = preview.filter(p => (p.status === 'valid' || p.status === 'warning') && p.status !== 'duplicate').length;
   const errorCount = preview.filter(p => p.status === 'error').length;
+  const duplicateCount = preview.filter(p => p.status === 'duplicate').length;
+
+  if (loadingRules) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-lg max-w-md w-full p-8">
+          <div className="flex flex-col items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+            <p className="text-slate-600">Carregando regras de comissão...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -201,6 +324,14 @@ export default function BulkTripImportModal({
               <li>Revise o resumo de importação</li>
               <li>Clique em "Importar" para adicionar as viagens</li>
             </ol>
+            <div className="mt-3 pt-3 border-t border-blue-200 space-y-2">
+              <p className="text-sm text-blue-800">
+                <strong>Comissões:</strong> Para motoristas cadastrados, a comissão será calculada automaticamente com base nas regras de comissão cadastradas (Origem → Destino). Se não houver regra cadastrada, a comissão ficará zerada.
+              </p>
+              <p className="text-sm text-blue-800">
+                <strong>Deduplicação:</strong> Viagens com veículo, motorista e origem iguais serão agrupadas. Apenas uma será importada (com a comissão mais alta). Duplicatas terão comissão zerada.
+              </p>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -262,6 +393,12 @@ export default function BulkTripImportModal({
                       {validCount} válido(s)
                     </div>
                   )}
+                  {duplicateCount > 0 && (
+                    <div className="flex items-center gap-1 text-orange-700">
+                      <AlertCircle className="h-4 w-4" />
+                      {duplicateCount} duplicado(s)
+                    </div>
+                  )}
                   {errorCount > 0 && (
                     <div className="flex items-center gap-1 text-red-700">
                       <AlertCircle className="h-4 w-4" />
@@ -281,12 +418,13 @@ export default function BulkTripImportModal({
                         <th className="px-3 py-2 text-left font-medium text-slate-700">Motorista</th>
                         <th className="px-3 py-2 text-left font-medium text-slate-700">Origem</th>
                         <th className="px-3 py-2 text-left font-medium text-slate-700">Destino</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-700">Comissão</th>
                         <th className="px-3 py-2 text-left font-medium text-slate-700">Mensagem</th>
                       </tr>
                     </thead>
                     <tbody>
                       {preview.map((trip, index) => (
-                        <tr key={index} className="border-t border-slate-200 hover:bg-slate-50">
+                        <tr key={index} className={`border-t border-slate-200 hover:bg-slate-50 ${trip.status === 'duplicate' ? 'bg-orange-50' : ''}`}>
                           <td className="px-3 py-2">
                             {trip.status === 'valid' && (
                               <div className="flex items-center gap-1 text-green-700">
@@ -303,6 +441,11 @@ export default function BulkTripImportModal({
                                 <AlertCircle className="h-4 w-4" />
                               </div>
                             )}
+                            {trip.status === 'duplicate' && (
+                              <div className="flex items-center gap-1 text-orange-700">
+                                <AlertCircle className="h-4 w-4" />
+                              </div>
+                            )}
                           </td>
                           <td className="px-3 py-2 font-medium text-slate-900">{trip.plate}</td>
                           <td className="px-3 py-2 text-slate-600">
@@ -315,6 +458,16 @@ export default function BulkTripImportModal({
                           </td>
                           <td className="px-3 py-2 text-slate-600">{trip.origin}</td>
                           <td className="px-3 py-2 text-slate-600">{trip.destination}</td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {trip.commission ? (
+                              <span className="inline-flex items-center gap-1 text-green-700 font-medium">
+                                <DollarSign className="h-3 w-3" />
+                                R$ {trip.commission.toFixed(2)}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            )}
+                          </td>
                           <td className="px-3 py-2 text-xs">
                             {trip.message && (
                               <span className={`inline-block px-2 py-1 rounded ${
@@ -333,10 +486,19 @@ export default function BulkTripImportModal({
                 </div>
               </div>
 
-              {errorCount > 0 && (
-                <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
-                  Viagens com erro serão ignoradas na importação. Apenas as viagens válidas e com avisos serão importadas.
-                </p>
+              {(errorCount > 0 || duplicateCount > 0) && (
+                <div className="space-y-2">
+                  {errorCount > 0 && (
+                    <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
+                      Viagens com erro serão ignoradas na importação. Apenas as viagens válidas e com avisos serão importadas.
+                    </p>
+                  )}
+                  {duplicateCount > 0 && (
+                    <p className="text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded-lg p-3">
+                      Viagens duplicadas foram detectadas (mesmo veículo, motorista e origem). Será importada apenas uma viagem por grupo, com a comissão mais alta. Duplicatas serão excluídas da importação.
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           )}
