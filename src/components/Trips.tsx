@@ -40,6 +40,9 @@ export default function Trips() {
     notes: '',
   });
 
+  const [isCustomDriver, setIsCustomDriver] = useState(false);
+  const [customDriverName, setCustomDriverName] = useState('');
+
   useEffect(() => {
     loadData();
   }, []);
@@ -71,16 +74,24 @@ export default function Trips() {
       return;
     }
 
-    if (!formData.driver_id?.trim()) {
-      alert('Motorista é obrigatório');
-      return;
+    if (isCustomDriver) {
+      if (!customDriverName.trim()) {
+        alert('Nome do motorista é obrigatório');
+        return;
+      }
+    } else {
+      if (!formData.driver_id?.trim()) {
+        alert('Motorista é obrigatório');
+        return;
+      }
     }
 
     try {
       const submitData = {
         ...formData,
         vehicle_id: formData.vehicle_id,
-        driver_id: formData.driver_id,
+        driver_id: isCustomDriver ? customDriverName : formData.driver_id,
+        driver_commission: isCustomDriver ? 0 : formData.driver_commission,
       };
 
       if (editingTrip) {
@@ -117,6 +128,15 @@ export default function Trips() {
     if (trip) {
       setEditingTrip(trip);
       setFormData(trip);
+
+      const isDriverRegistered = drivers.find(d => d.id === trip.driver_id);
+      if (!isDriverRegistered && trip.driver_id) {
+        setIsCustomDriver(true);
+        setCustomDriverName(trip.driver_id);
+      } else {
+        setIsCustomDriver(false);
+        setCustomDriverName('');
+      }
     } else {
       resetForm();
     }
@@ -141,6 +161,8 @@ export default function Trips() {
       receipt: '',
       notes: '',
     });
+    setIsCustomDriver(false);
+    setCustomDriverName('');
   };
 
   const getVehicleInfo = (vehicleId: string) => {
@@ -485,19 +507,64 @@ export default function Trips() {
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Motorista *
                   </label>
-                  <select
-                    required
-                    value={formData.driver_id || ''}
-                    onChange={(e) => setFormData({ ...formData, driver_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Selecione um motorista</option>
-                    {drivers.map((driver) => (
-                      <option key={driver.id} value={driver.id}>
-                        {driver.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          checked={!isCustomDriver}
+                          onChange={() => {
+                            setIsCustomDriver(false);
+                            setCustomDriverName('');
+                          }}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">Cadastrado</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          checked={isCustomDriver}
+                          onChange={() => {
+                            setIsCustomDriver(true);
+                            setFormData({ ...formData, driver_id: '' });
+                          }}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">Não Cadastrado</span>
+                      </label>
+                    </div>
+
+                    {!isCustomDriver ? (
+                      <select
+                        required
+                        value={formData.driver_id || ''}
+                        onChange={(e) => setFormData({ ...formData, driver_id: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">Selecione um motorista</option>
+                        {drivers.map((driver) => (
+                          <option key={driver.id} value={driver.id}>
+                            {driver.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div>
+                        <input
+                          type="text"
+                          required
+                          value={customDriverName}
+                          onChange={(e) => setCustomDriverName(e.target.value)}
+                          placeholder="Nome do motorista"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                        <p className="text-xs text-amber-600 mt-1">
+                          Motorista não cadastrado - comissão será zerada
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div>
@@ -537,11 +604,17 @@ export default function Trips() {
                   <input
                     type="number"
                     step="0.01"
-                    value={formData.driver_commission || ''}
+                    value={isCustomDriver ? 0 : (formData.driver_commission || '')}
                     onChange={(e) => setFormData({ ...formData, driver_commission: e.target.value ? parseFloat(e.target.value) : null })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={isCustomDriver}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-100 disabled:text-slate-500"
                     placeholder="Opcional"
                   />
+                  {isCustomDriver && (
+                    <p className="text-xs text-slate-500 mt-1">
+                      Comissão bloqueada para motorista não cadastrado
+                    </p>
+                  )}
                 </div>
 
                 <div>
