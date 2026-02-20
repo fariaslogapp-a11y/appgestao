@@ -9,16 +9,23 @@ import TireInspectionSheet from './components/TireInspectionSheet';
 import TireInspectionFormPage from './components/TireInspectionFormPage';
 import TireInspectionReports from './components/TireInspectionReports';
 import CommissionRanking from './components/CommissionRanking';
+import LoginPage from './components/LoginPage';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { Truck, Users, Wrench, Route as RouteIcon, LayoutDashboard, FileText, TrendingUp, BarChart3 } from 'lucide-react';
 
 type Page = 'dashboard' | 'vehicles' | 'drivers' | 'maintenance' | 'trips' | 'tire-inspection' | 'tire-inspection-reports' | 'commission-ranking';
 
 function AppContent() {
   const location = useLocation();
+  const { isAuthenticated } = useAuth();
   const isFormPage = location.pathname.startsWith('/tire-inspection/');
 
   if (isFormPage) {
     return <TireInspectionFormPage />;
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
   }
 
   const navigation = [
@@ -99,12 +106,14 @@ function AppContent() {
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/*" element={<AppContent />} />
-        <Route path="/tire-inspection/:token" element={<TireInspectionFormPage />} />
-      </Routes>
-    </BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/*" element={<AppContent />} />
+          <Route path="/tire-inspection/:token" element={<TireInspectionFormPage />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 
