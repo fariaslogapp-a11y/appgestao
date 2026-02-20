@@ -177,11 +177,7 @@ export default function BulkTripImportModal({
     const warnings: string[] = [];
 
     if (!vehicle) {
-      warnings.push('Veículo não encontrado');
-    }
-
-    if (!driver) {
-      warnings.push('Motorista não cadastrado');
+      errors.push('Veículo não encontrado');
     }
 
     if (!trip.origin?.trim()) {
@@ -192,7 +188,7 @@ export default function BulkTripImportModal({
       errors.push('Destino vazio');
     }
 
-    const commission = driver ? findCommission(trip.origin, trip.destination) : null;
+    const commission = driver ? findCommission(trip.origin, trip.destination) : 0;
 
     if (errors.length > 0) {
       return {
@@ -206,14 +202,14 @@ export default function BulkTripImportModal({
       };
     }
 
-    if (warnings.length > 0) {
+    if (!driver) {
       return {
         ...trip,
         vehicleId: vehicle?.id,
-        driverId: driver?.id,
-        commission: commission || undefined,
+        driverId: undefined,
+        commission: 0,
         status: 'warning',
-        message: warnings.join(', '),
+        message: 'Motorista não cadastrado (comissão zerada)',
         duplicateGroup: groupKey,
       };
     }
@@ -252,14 +248,14 @@ export default function BulkTripImportModal({
 
     const tripsToCreate: Array<Omit<Trip, 'id' | 'created_at'>> = validTrips.map(trip => ({
       vehicle_id: trip.vehicleId || '',
-      driver_id: trip.driverId || '',
+      driver_id: trip.driverId || trip.driverName,
       status: 'planned',
       origin: trip.origin,
       destination: trip.destination,
       departure_date: departureDate,
       arrival_date: null,
       freight_value: 0,
-      driver_commission: trip.commission || null,
+      driver_commission: trip.driverId ? (trip.commission || null) : 0,
       cte: '',
       nfe: '',
       pallet_term: '',
@@ -325,6 +321,9 @@ export default function BulkTripImportModal({
               <li>Clique em "Importar" para adicionar as viagens</li>
             </ol>
             <div className="mt-3 pt-3 border-t border-blue-200 space-y-2">
+              <p className="text-sm text-blue-800">
+                <strong>Motoristas:</strong> Motoristas não cadastrados serão aceitos e salvos com o nome informado. A comissão será automaticamente zerada.
+              </p>
               <p className="text-sm text-blue-800">
                 <strong>Comissões:</strong> Para motoristas cadastrados, a comissão será calculada automaticamente com base nas regras de comissão cadastradas (Origem → Destino). Se não houver regra cadastrada, a comissão ficará zerada.
               </p>
@@ -453,19 +452,19 @@ export default function BulkTripImportModal({
                             {trip.driverId ? (
                               <span className="text-xs text-green-700 ml-1">(cadastrado)</span>
                             ) : (
-                              <span className="text-xs text-yellow-700 ml-1">(novo)</span>
+                              <span className="text-xs text-amber-700 ml-1">(não cadastrado)</span>
                             )}
                           </td>
                           <td className="px-3 py-2 text-slate-600">{trip.origin}</td>
                           <td className="px-3 py-2 text-slate-600">{trip.destination}</td>
                           <td className="px-3 py-2 text-slate-600">
-                            {trip.commission ? (
+                            {trip.commission && trip.commission > 0 ? (
                               <span className="inline-flex items-center gap-1 text-green-700 font-medium">
                                 <DollarSign className="h-3 w-3" />
                                 R$ {trip.commission.toFixed(2)}
                               </span>
                             ) : (
-                              <span className="text-slate-400">-</span>
+                              <span className="text-slate-400">R$ 0,00</span>
                             )}
                           </td>
                           <td className="px-3 py-2 text-xs">
@@ -486,20 +485,23 @@ export default function BulkTripImportModal({
                 </div>
               </div>
 
-              {(errorCount > 0 || duplicateCount > 0) && (
-                <div className="space-y-2">
-                  {errorCount > 0 && (
-                    <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
-                      Viagens com erro serão ignoradas na importação. Apenas as viagens válidas e com avisos serão importadas.
-                    </p>
-                  )}
-                  {duplicateCount > 0 && (
-                    <p className="text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded-lg p-3">
-                      Viagens duplicadas foram detectadas (mesmo veículo, motorista e origem). Será importada apenas uma viagem por grupo, com a comissão mais alta. Duplicatas serão excluídas da importação.
-                    </p>
-                  )}
-                </div>
-              )}
+              <div className="space-y-2">
+                {errorCount > 0 && (
+                  <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
+                    Viagens com erro serão ignoradas na importação. Apenas as viagens válidas e com avisos serão importadas.
+                  </p>
+                )}
+                {duplicateCount > 0 && (
+                  <p className="text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded-lg p-3">
+                    Viagens duplicadas foram detectadas (mesmo veículo, motorista e origem). Será importada apenas uma viagem por grupo, com a comissão mais alta. Duplicatas serão excluídas da importação.
+                  </p>
+                )}
+                {validCount > 0 && preview.some(p => !p.driverId && p.status !== 'error') && (
+                  <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    Motoristas não cadastrados serão salvos com o nome informado e terão comissão zerada.
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
