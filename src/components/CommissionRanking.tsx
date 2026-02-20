@@ -89,7 +89,7 @@ export default function CommissionRanking() {
       const lastDay = new Date(year, month + 1, 0).toISOString().split('T')[0];
 
       const [tripsSnap, driversSnap, vehiclesSnap, rulesSnap, manualSnap] = await Promise.all([
-        getDocs(query(collection(db, 'trips'), where('status', '==', 'completed'))),
+        getDocs(query(collection(db, 'trips'), firestoreOrderBy('departure_date', 'desc'))),
         getDocs(query(collection(db, 'drivers'), firestoreOrderBy('name'))),
         getDocs(query(collection(db, 'vehicles'), firestoreOrderBy('plate'))),
         getDocs(query(collection(db, 'commission_rules'), firestoreOrderBy('created_at', 'desc'))),
