@@ -230,16 +230,16 @@ export default function Dashboard() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-600">Disponíveis</span>
-                  <span className="text-sm font-semibold text-green-600">{typeStats.available}</span>
+                  <span className="text-lg font-bold text-green-600">{typeStats.available}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-600">Em Manutenção</span>
-                  <span className="text-sm font-semibold text-orange-600">{typeStats.maintenance}</span>
+                  <span className="text-lg font-bold text-orange-600">{typeStats.maintenance}</span>
                 </div>
                 {typeStats.inactive > 0 && (
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-slate-600">Inativos</span>
-                    <span className="text-sm font-semibold text-slate-600">{typeStats.inactive}</span>
+                    <span className="text-lg font-bold text-slate-600">{typeStats.inactive}</span>
                   </div>
                 )}
               </div>
