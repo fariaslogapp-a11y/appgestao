@@ -173,7 +173,7 @@ export default function Trips() {
   const getDriverName = (driverId: string | null) => {
     if (!driverId) return '-';
     const driver = drivers.find(d => d.id === driverId);
-    return driver ? driver.name : 'N/A';
+    return driver ? driver.name : driverId;
   };
 
   const getStatusColor = (status: string) => {
