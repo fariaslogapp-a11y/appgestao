@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, deleteDoc, doc, query, where, orderBy as firestoreOrderBy } from 'firebase/firestore';
-import { TrendingUp, Calendar, Download, Filter, X, ChevronRight, Users, Plus, Edit2, Trash2, DollarSign, FileText } from 'lucide-react';
+import { collection, getDocs, addDoc, deleteDoc, updateDoc, doc, query, where, orderBy as firestoreOrderBy } from 'firebase/firestore';
+import { TrendingUp, Calendar, Download, Filter, X, ChevronRight, Users, Plus, Edit2, Trash2, DollarSign, FileText, ChevronLeft, ChevronsLeft, ChevronsRight, ArrowUpDown } from 'lucide-react';
 import { formatDateLocal } from '../utils/dateUtils';
 import { exportToExcel } from '../utils/excelExport';
 import { exportCommissionSummaryToPDF, exportDriverCommissionDetailsToPDF, exportAllDriversDetailsToPDF } from '../utils/commissionPdfExport';
@@ -23,6 +23,10 @@ interface DriverSummary {
 }
 
 type Tab = 'summary' | 'rules' | 'manual';
+type SortField = 'origin' | 'destination' | 'commission_value' | 'date' | 'description';
+type SortDirection = 'asc' | 'desc';
+
+const ITEMS_PER_PAGE = 100;
 
 export default function CommissionRanking() {
   const [trips, setTrips] = useState<TripWithDetails[]>([]);
@@ -45,6 +49,7 @@ export default function CommissionRanking() {
   const [ruleForm, setRuleForm] = useState({ origin: '', destination: '', commission_value: 0 });
 
   const [showManualModal, setShowManualModal] = useState(false);
+  const [editingManual, setEditingManual] = useState<ManualCommission | null>(null);
   const [manualForm, setManualForm] = useState({
     driver_id: '',
     driver_name: '',
@@ -54,6 +59,20 @@ export default function CommissionRanking() {
     notes: '',
     date: new Date().toISOString().split('T')[0],
   });
+
+  const [rulesPage, setRulesPage] = useState(1);
+  const [manualPage, setManualPage] = useState(1);
+  const [tripsPage, setTripsPage] = useState(1);
+
+  const [rulesSortField, setRulesSortField] = useState<SortField>('origin');
+  const [rulesSortDirection, setRulesSortDirection] = useState<SortDirection>('asc');
+  const [manualSortField, setManualSortField] = useState<SortField>('date');
+  const [manualSortDirection, setManualSortDirection] = useState<SortDirection>('desc');
+  const [tripsSortField, setTripsSortField] = useState<'date' | 'driver' | 'origin' | 'destination' | 'commission'>('date');
+  const [tripsSortDirection, setTripsSortDirection] = useState<SortDirection>('desc');
+
+  const [rulesSearchTerm, setRulesSearchTerm] = useState('');
+  const [manualSearchTerm, setManualSearchTerm] = useState('');
 
   useEffect(() => {
     loadCommissionData();
@@ -174,7 +193,130 @@ export default function CommissionRanking() {
       filtered = filtered.filter(trip => trip.vehicle_id === selectedVehicle);
     }
 
-    return filtered.sort((a, b) => new Date(b.departure_date).getTime() - new Date(a.departure_date).getTime());
+    return filtered.sort((a, b) => {
+      switch (tripsSortField) {
+        case 'date':
+          return tripsSortDirection === 'asc'
+            ? new Date(a.departure_date).getTime() - new Date(b.departure_date).getTime()
+            : new Date(b.departure_date).getTime() - new Date(a.departure_date).getTime();
+        case 'driver':
+          return tripsSortDirection === 'asc'
+            ? a.driverName.localeCompare(b.driverName)
+            : b.driverName.localeCompare(a.driverName);
+        case 'origin':
+          return tripsSortDirection === 'asc'
+            ? a.origin.localeCompare(b.origin)
+            : b.origin.localeCompare(a.origin);
+        case 'destination':
+          return tripsSortDirection === 'asc'
+            ? a.destination.localeCompare(b.destination)
+            : b.destination.localeCompare(a.destination);
+        case 'commission':
+          return tripsSortDirection === 'asc'
+            ? (a.driver_commission || 0) - (b.driver_commission || 0)
+            : (b.driver_commission || 0) - (a.driver_commission || 0);
+        default:
+          return 0;
+      }
+    });
+  };
+
+  const getFilteredRules = (): CommissionRule[] => {
+    let filtered = [...commissionRules];
+
+    if (rulesSearchTerm) {
+      filtered = filtered.filter(rule =>
+        rule.origin.toLowerCase().includes(rulesSearchTerm.toLowerCase()) ||
+        rule.destination.toLowerCase().includes(rulesSearchTerm.toLowerCase())
+      );
+    }
+
+    return filtered.sort((a, b) => {
+      switch (rulesSortField) {
+        case 'origin':
+          return rulesSortDirection === 'asc'
+            ? a.origin.localeCompare(b.origin)
+            : b.origin.localeCompare(a.origin);
+        case 'destination':
+          return rulesSortDirection === 'asc'
+            ? a.destination.localeCompare(b.destination)
+            : b.destination.localeCompare(a.destination);
+        case 'commission_value':
+          return rulesSortDirection === 'asc'
+            ? a.commission_value - b.commission_value
+            : b.commission_value - a.commission_value;
+        default:
+          return 0;
+      }
+    });
+  };
+
+  const getFilteredManualCommissions = (): ManualCommission[] => {
+    let filtered = [...manualCommissions];
+
+    if (manualSearchTerm) {
+      filtered = filtered.filter(manual => {
+        const driverName = drivers.find(d => d.id === manual.driver_id)?.name || manual.driver_id;
+        return driverName.toLowerCase().includes(manualSearchTerm.toLowerCase()) ||
+          manual.description.toLowerCase().includes(manualSearchTerm.toLowerCase()) ||
+          (manual.origin && manual.origin.toLowerCase().includes(manualSearchTerm.toLowerCase()));
+      });
+    }
+
+    return filtered.sort((a, b) => {
+      switch (manualSortField) {
+        case 'date':
+          return manualSortDirection === 'asc'
+            ? new Date(a.date).getTime() - new Date(b.date).getTime()
+            : new Date(b.date).getTime() - new Date(a.date).getTime();
+        case 'description':
+          return manualSortDirection === 'asc'
+            ? a.description.localeCompare(b.description)
+            : b.description.localeCompare(a.description);
+        case 'origin':
+          const aOrigin = a.origin || '';
+          const bOrigin = b.origin || '';
+          return manualSortDirection === 'asc'
+            ? aOrigin.localeCompare(bOrigin)
+            : bOrigin.localeCompare(aOrigin);
+        case 'commission_value':
+          return manualSortDirection === 'asc'
+            ? a.commission_value - b.commission_value
+            : b.commission_value - a.commission_value;
+        default:
+          return 0;
+      }
+    });
+  };
+
+  const handleToggleRulesSort = (field: SortField) => {
+    if (rulesSortField === field) {
+      setRulesSortDirection(rulesSortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setRulesSortField(field);
+      setRulesSortDirection('asc');
+    }
+    setRulesPage(1);
+  };
+
+  const handleToggleManualSort = (field: SortField) => {
+    if (manualSortField === field) {
+      setManualSortDirection(manualSortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setManualSortField(field);
+      setManualSortDirection('asc');
+    }
+    setManualPage(1);
+  };
+
+  const handleToggleTripsSort = (field: 'date' | 'driver' | 'origin' | 'destination' | 'commission') => {
+    if (tripsSortField === field) {
+      setTripsSortDirection(tripsSortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setTripsSortField(field);
+      setTripsSortDirection('asc');
+    }
+    setTripsPage(1);
   };
 
   const getUniqueOrigins = (): string[] => {
@@ -389,6 +531,20 @@ export default function CommissionRanking() {
     }
   };
 
+  const handleEditManual = (manual: ManualCommission) => {
+    setEditingManual(manual);
+    setManualForm({
+      driver_id: manual.driver_id,
+      driver_name: '',
+      description: manual.description,
+      origin: manual.origin || '',
+      commission_value: manual.commission_value,
+      notes: manual.notes || '',
+      date: manual.date,
+    });
+    setShowManualModal(true);
+  };
+
   const handleSaveManual = async (e: React.FormEvent) => {
     e.preventDefault();
     const driverIdentifier = manualForm.driver_id || manualForm.driver_name.trim();
@@ -398,16 +554,26 @@ export default function CommissionRanking() {
     }
 
     try {
-      await addDoc(collection(db, 'manual_commissions'), {
+      const data = {
         driver_id: manualForm.driver_id || manualForm.driver_name.trim(),
         description: manualForm.description,
         origin: manualForm.origin,
         commission_value: manualForm.commission_value,
         notes: manualForm.notes,
         date: manualForm.date,
-        created_at: new Date().toISOString(),
-      });
+      };
+
+      if (editingManual) {
+        await updateDoc(doc(db, 'manual_commissions', editingManual.id), data);
+      } else {
+        await addDoc(collection(db, 'manual_commissions'), {
+          ...data,
+          created_at: new Date().toISOString(),
+        });
+      }
+
       setShowManualModal(false);
+      setEditingManual(null);
       setManualForm({
         driver_id: '',
         driver_name: '',
@@ -440,11 +606,22 @@ export default function CommissionRanking() {
 
   const driverSummaries = getDriverSummaries();
   const filteredTrips = getFilteredTrips();
+  const filteredRules = getFilteredRules();
+  const filteredManualCommissions = getFilteredManualCommissions();
 
   const totalCommission = view === 'summary'
     ? driverSummaries.reduce((sum, summary) => sum + summary.totalCommission, 0)
     : filteredTrips.reduce((sum, trip) => sum + (trip.driver_commission || 0), 0) +
       (selectedDriver ? manualCommissions.filter(m => m.driver_id === selectedDriver).reduce((sum, m) => sum + m.commission_value, 0) : 0);
+
+  const paginatedRules = filteredRules.slice((rulesPage - 1) * ITEMS_PER_PAGE, rulesPage * ITEMS_PER_PAGE);
+  const totalRulesPages = Math.ceil(filteredRules.length / ITEMS_PER_PAGE);
+
+  const paginatedManual = filteredManualCommissions.slice((manualPage - 1) * ITEMS_PER_PAGE, manualPage * ITEMS_PER_PAGE);
+  const totalManualPages = Math.ceil(filteredManualCommissions.length / ITEMS_PER_PAGE);
+
+  const paginatedTrips = filteredTrips.slice((tripsPage - 1) * ITEMS_PER_PAGE, tripsPage * ITEMS_PER_PAGE);
+  const totalTripsPages = Math.ceil(filteredTrips.length / ITEMS_PER_PAGE);
 
   useEffect(() => {
     if (hasActiveFilters) {
@@ -459,6 +636,67 @@ export default function CommissionRanking() {
       </div>
     );
   }
+
+  const renderPagination = (currentPage: number, totalPages: number, onPageChange: (page: number) => void) => {
+    if (totalPages <= 1) return null;
+
+    return (
+      <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200">
+        <div className="text-sm text-slate-600">
+          Página {currentPage} de {totalPages}
+        </div>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => onPageChange(1)}
+            disabled={currentPage === 1}
+            className={`p-2 rounded-lg transition-colors ${
+              currentPage === 1
+                ? 'text-slate-400 cursor-not-allowed'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <ChevronsLeft className="h-5 w-5" />
+          </button>
+          <button
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className={`p-2 rounded-lg transition-colors ${
+              currentPage === 1
+                ? 'text-slate-400 cursor-not-allowed'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <span className="px-4 py-2 text-sm font-medium text-slate-900">
+            {currentPage}
+          </span>
+          <button
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className={`p-2 rounded-lg transition-colors ${
+              currentPage === totalPages
+                ? 'text-slate-400 cursor-not-allowed'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+          <button
+            onClick={() => onPageChange(totalPages)}
+            disabled={currentPage === totalPages}
+            className={`p-2 rounded-lg transition-colors ${
+              currentPage === totalPages
+                ? 'text-slate-400 cursor-not-allowed'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <ChevronsRight className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div>
@@ -545,61 +783,99 @@ export default function CommissionRanking() {
             </button>
           </div>
 
-          {commissionRules.length === 0 ? (
+          <div className="mb-4">
+            <input
+              type="text"
+              placeholder="Buscar por origem ou destino..."
+              value={rulesSearchTerm}
+              onChange={(e) => {
+                setRulesSearchTerm(e.target.value);
+                setRulesPage(1);
+              }}
+              className="w-full max-w-md px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          {filteredRules.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-lg border border-slate-200">
               <DollarSign className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-              <p className="text-slate-600 mb-4">Nenhuma regra de comissão cadastrada</p>
-              <button
-                onClick={() => setShowRuleModal(true)}
-                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                Cadastrar Primeira Regra
-              </button>
+              <p className="text-slate-600 mb-4">
+                {rulesSearchTerm ? 'Nenhuma regra encontrada com o filtro aplicado' : 'Nenhuma regra de comissão cadastrada'}
+              </p>
+              {!rulesSearchTerm && (
+                <button
+                  onClick={() => setShowRuleModal(true)}
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Plus className="h-5 w-5 mr-2" />
+                  Cadastrar Primeira Regra
+                </button>
+              )}
             </div>
           ) : (
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                      Origem
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                      Destino
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                      Valor da Comissão
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-700 uppercase">
-                      Ações
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-slate-200">
-                  {commissionRules.map((rule) => (
-                    <tr key={rule.id} className="hover:bg-slate-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
-                        {rule.origin}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                        {rule.destination}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
-                        R$ {Number(rule.commission_value).toFixed(2)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button
-                          onClick={() => handleDeleteRule(rule.id)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          <Trash2 className="h-5 w-5" />
-                        </button>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase cursor-pointer hover:bg-slate-100"
+                        onClick={() => handleToggleRulesSort('origin')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Origem
+                          <ArrowUpDown className="h-4 w-4" />
+                        </div>
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase cursor-pointer hover:bg-slate-100"
+                        onClick={() => handleToggleRulesSort('destination')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Destino
+                          <ArrowUpDown className="h-4 w-4" />
+                        </div>
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase cursor-pointer hover:bg-slate-100"
+                        onClick={() => handleToggleRulesSort('commission_value')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Valor da Comissão
+                          <ArrowUpDown className="h-4 w-4" />
+                        </div>
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-slate-700 uppercase">
+                        Ações
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-slate-200">
+                    {paginatedRules.map((rule) => (
+                      <tr key={rule.id} className="hover:bg-slate-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                          {rule.origin}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                          {rule.destination}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
+                          R$ {Number(rule.commission_value).toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <button
+                            onClick={() => handleDeleteRule(rule.id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            <Trash2 className="h-5 w-5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {renderPagination(rulesPage, totalRulesPages, setRulesPage)}
             </div>
           )}
         </div>
@@ -612,7 +888,10 @@ export default function CommissionRanking() {
               Adicione comissões manuais (pernoites, bonificações, etc.)
             </p>
             <button
-              onClick={() => setShowManualModal(true)}
+              onClick={() => {
+                setEditingManual(null);
+                setShowManualModal(true);
+              }}
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <Plus className="h-5 w-5 mr-2" />
@@ -620,91 +899,134 @@ export default function CommissionRanking() {
             </button>
           </div>
 
-          {manualCommissions.filter(m => {
-            const year = currentMonth.getFullYear();
-            const month = currentMonth.getMonth();
-            const firstDay = new Date(year, month, 1).toISOString().split('T')[0];
-            const lastDay = new Date(year, month + 1, 0).toISOString().split('T')[0];
-            return m.date >= firstDay && m.date <= lastDay;
-          }).length === 0 ? (
+          <div className="mb-4">
+            <input
+              type="text"
+              placeholder="Buscar por motorista, descrição ou origem..."
+              value={manualSearchTerm}
+              onChange={(e) => {
+                setManualSearchTerm(e.target.value);
+                setManualPage(1);
+              }}
+              className="w-full max-w-md px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          {filteredManualCommissions.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-lg border border-slate-200">
               <DollarSign className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-              <p className="text-slate-600 mb-2">Nenhuma comissão manual para {monthDisplay}</p>
-              <button
-                onClick={() => setShowManualModal(true)}
-                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors mt-4"
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                Adicionar Comissão Manual
-              </button>
+              <p className="text-slate-600 mb-2">
+                {manualSearchTerm ? 'Nenhuma comissão encontrada com o filtro aplicado' : `Nenhuma comissão manual para ${monthDisplay}`}
+              </p>
+              {!manualSearchTerm && (
+                <button
+                  onClick={() => {
+                    setEditingManual(null);
+                    setShowManualModal(true);
+                  }}
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors mt-4"
+                >
+                  <Plus className="h-5 w-5 mr-2" />
+                  Adicionar Comissão Manual
+                </button>
+              )}
             </div>
           ) : (
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                      Data
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                      Motorista
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                      Descrição
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                      Origem
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                      Valor
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                      Observações
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-700 uppercase">
-                      Ações
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-slate-200">
-                  {manualCommissions.filter(m => {
-                    const year = currentMonth.getFullYear();
-                    const month = currentMonth.getMonth();
-                    const firstDay = new Date(year, month, 1).toISOString().split('T')[0];
-                    const lastDay = new Date(year, month + 1, 0).toISOString().split('T')[0];
-                    return m.date >= firstDay && m.date <= lastDay;
-                  }).map((manual) => (
-                    <tr key={manual.id} className="hover:bg-slate-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
-                        {formatDateLocal(manual.date)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
-                        {drivers.find(d => d.id === manual.driver_id)?.name || manual.driver_id}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600">
-                        {manual.description}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600">
-                        {manual.origin || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
-                        R$ {Number(manual.commission_value).toFixed(2)}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600">
-                        {manual.notes || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button
-                          onClick={() => handleDeleteManual(manual.id)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          <Trash2 className="h-5 w-5" />
-                        </button>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase cursor-pointer hover:bg-slate-100"
+                        onClick={() => handleToggleManualSort('date')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Data
+                          <ArrowUpDown className="h-4 w-4" />
+                        </div>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
+                        Motorista
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase cursor-pointer hover:bg-slate-100"
+                        onClick={() => handleToggleManualSort('description')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Descrição
+                          <ArrowUpDown className="h-4 w-4" />
+                        </div>
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase cursor-pointer hover:bg-slate-100"
+                        onClick={() => handleToggleManualSort('origin')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Origem
+                          <ArrowUpDown className="h-4 w-4" />
+                        </div>
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase cursor-pointer hover:bg-slate-100"
+                        onClick={() => handleToggleManualSort('commission_value')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Valor
+                          <ArrowUpDown className="h-4 w-4" />
+                        </div>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
+                        Observações
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-slate-700 uppercase">
+                        Ações
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-slate-200">
+                    {paginatedManual.map((manual) => (
+                      <tr key={manual.id} className="hover:bg-slate-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
+                          {formatDateLocal(manual.date)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                          {drivers.find(d => d.id === manual.driver_id)?.name || manual.driver_id}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-600">
+                          {manual.description}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-600">
+                          {manual.origin || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
+                          R$ {Number(manual.commission_value).toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-600">
+                          {manual.notes || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleEditManual(manual)}
+                              className="text-blue-600 hover:text-blue-900"
+                            >
+                              <Edit2 className="h-5 w-5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteManual(manual.id)}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              <Trash2 className="h-5 w-5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {renderPagination(manualPage, totalManualPages, setManualPage)}
             </div>
           )}
         </div>
@@ -1030,30 +1352,60 @@ export default function CommissionRanking() {
                         <table className="min-w-full divide-y divide-slate-200">
                           <thead className="bg-slate-50">
                             <tr>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                                Data
+                              <th
+                                className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase cursor-pointer hover:bg-slate-100"
+                                onClick={() => handleToggleTripsSort('date')}
+                              >
+                                <div className="flex items-center gap-2">
+                                  Data
+                                  <ArrowUpDown className="h-4 w-4" />
+                                </div>
                               </th>
                               {!selectedDriver && (
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                                  Motorista
+                                <th
+                                  className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase cursor-pointer hover:bg-slate-100"
+                                  onClick={() => handleToggleTripsSort('driver')}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    Motorista
+                                    <ArrowUpDown className="h-4 w-4" />
+                                  </div>
                                 </th>
                               )}
-                              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                                Origem
+                              <th
+                                className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase cursor-pointer hover:bg-slate-100"
+                                onClick={() => handleToggleTripsSort('origin')}
+                              >
+                                <div className="flex items-center gap-2">
+                                  Origem
+                                  <ArrowUpDown className="h-4 w-4" />
+                                </div>
                               </th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                                Destino
+                              <th
+                                className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase cursor-pointer hover:bg-slate-100"
+                                onClick={() => handleToggleTripsSort('destination')}
+                              >
+                                <div className="flex items-center gap-2">
+                                  Destino
+                                  <ArrowUpDown className="h-4 w-4" />
+                                </div>
                               </th>
                               <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
                                 Placa
                               </th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase">
-                                Comissão
+                              <th
+                                className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase cursor-pointer hover:bg-slate-100"
+                                onClick={() => handleToggleTripsSort('commission')}
+                              >
+                                <div className="flex items-center gap-2">
+                                  Comissão
+                                  <ArrowUpDown className="h-4 w-4" />
+                                </div>
                               </th>
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-slate-200">
-                            {filteredTrips.map((trip) => (
+                            {paginatedTrips.map((trip) => (
                               <tr key={trip.id} className="hover:bg-slate-50">
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
                                   {formatDateLocal(trip.departure_date)}
@@ -1080,6 +1432,7 @@ export default function CommissionRanking() {
                           </tbody>
                         </table>
                       </div>
+                      {renderPagination(tripsPage, totalTripsPages, setTripsPage)}
                     </div>
                   )}
                 </div>
@@ -1177,10 +1530,13 @@ export default function CommissionRanking() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-lg w-full">
             <div className="flex justify-between items-center p-6 border-b border-slate-200">
-              <h2 className="text-xl font-semibold text-slate-900">Nova Comissão Manual</h2>
+              <h2 className="text-xl font-semibold text-slate-900">
+                {editingManual ? 'Editar Comissão Manual' : 'Nova Comissão Manual'}
+              </h2>
               <button
                 onClick={() => {
                   setShowManualModal(false);
+                  setEditingManual(null);
                   setManualForm({
                     driver_id: '',
                     driver_name: '',
@@ -1215,18 +1571,22 @@ export default function CommissionRanking() {
                       </option>
                     ))}
                   </select>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-px bg-slate-300"></div>
-                    <span className="text-xs text-slate-600 px-2">OU</span>
-                    <div className="flex-1 h-px bg-slate-300"></div>
-                  </div>
-                  <input
-                    type="text"
-                    value={manualForm.driver_name}
-                    onChange={(e) => setManualForm({ ...manualForm, driver_name: e.target.value, driver_id: '' })}
-                    placeholder="Digite o nome do motorista"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
+                  {!editingManual && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-px bg-slate-300"></div>
+                        <span className="text-xs text-slate-600 px-2">OU</span>
+                        <div className="flex-1 h-px bg-slate-300"></div>
+                      </div>
+                      <input
+                        type="text"
+                        value={manualForm.driver_name}
+                        onChange={(e) => setManualForm({ ...manualForm, driver_name: e.target.value, driver_id: '' })}
+                        placeholder="Digite o nome do motorista"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </>
+                  )}
                 </div>
                 {!manualForm.driver_id && !manualForm.driver_name.trim() && (
                   <p className="text-xs text-red-600 mt-1">Selecione ou digite um motorista</p>
@@ -1307,6 +1667,7 @@ export default function CommissionRanking() {
                   type="button"
                   onClick={() => {
                     setShowManualModal(false);
+                    setEditingManual(null);
                     setManualForm({
                       driver_id: '',
                       driver_name: '',
@@ -1325,7 +1686,7 @@ export default function CommissionRanking() {
                   type="submit"
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  Salvar
+                  {editingManual ? 'Atualizar' : 'Salvar'}
                 </button>
               </div>
             </form>
