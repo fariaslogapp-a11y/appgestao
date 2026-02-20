@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Menu, X, Truck } from 'lucide-react';
+import { Menu, X, Truck, LogOut } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 interface NavigationItem {
   id: string;
@@ -15,10 +16,17 @@ interface NavigationProps {
 
 export default function Navigation({ items, currentPage, onPageChange }: NavigationProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { logout } = useAuth();
 
   const handlePageChange = (page: string) => {
     onPageChange(page);
     setIsMenuOpen(false);
+  };
+
+  const handleLogout = () => {
+    logout();
+    setIsMenuOpen(false);
+    window.location.reload();
   };
 
   return (
@@ -53,6 +61,14 @@ export default function Navigation({ items, currentPage, onPageChange }: Navigat
                 </button>
               );
             })}
+            <button
+              onClick={handleLogout}
+              className="inline-flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors text-slate-600 hover:bg-red-50 hover:text-red-700"
+              title="Sair do sistema"
+            >
+              <LogOut className="h-5 w-5 mr-2" />
+              Sair
+            </button>
           </div>
 
           <div className="sm:hidden flex items-center">
@@ -89,6 +105,13 @@ export default function Navigation({ items, currentPage, onPageChange }: Navigat
                   </button>
                 );
               })}
+              <button
+                onClick={handleLogout}
+                className="w-full text-left flex items-center px-3 py-2 rounded-md text-base font-medium transition-colors text-slate-600 hover:bg-red-50 hover:text-red-700"
+              >
+                <LogOut className="h-5 w-5 mr-3" />
+                Sair
+              </button>
             </div>
           </div>
         )}
