@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { db } from '../lib/firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy } from 'firebase/firestore';
-import { Plus, Edit2, Trash2, X, MapPin, Calendar, DollarSign, FileText, Download, Upload } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, MapPin, Calendar, DollarSign, FileText, Download, Upload, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import { formatDateLocal, getDateWithTimezoneOffset } from '../utils/dateUtils';
 import { exportToExcel } from '../utils/excelExport';
 import BulkTripImportModal from './BulkTripImportModal';
@@ -10,7 +10,7 @@ import type { Trip, Vehicle, Driver } from '../types';
 
 type TripForm = Omit<Trip, 'id' | 'created_at'>;
 
-type StatusFilter = 'all' | 'planned' | 'in_progress' | 'completed' | 'cancelled';
+const ITEMS_PER_PAGE = 100;
 
 export default function Trips() {
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -20,12 +20,15 @@ export default function Trips() {
   const [showModal, setShowModal] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
 
   const [formData, setFormData] = useState<TripForm>({
     vehicle_id: '',
     driver_id: '',
-    status: 'planned',
+    status: 'completed',
     origin: '',
     destination: '',
     departure_date: getDateWithTimezoneOffset(),
@@ -147,7 +150,7 @@ export default function Trips() {
     setFormData({
       vehicle_id: '',
       driver_id: '',
-      status: 'planned',
+      status: 'completed',
       origin: '',
       destination: '',
       departure_date: getDateWithTimezoneOffset(),
@@ -176,76 +179,31 @@ export default function Trips() {
     return driver ? driver.name : driverId;
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'planned':
-        return 'bg-blue-100 text-blue-800';
-      case 'in_progress':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'completed':
-        return 'bg-green-100 text-green-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-slate-100 text-slate-800';
+  const filteredTrips = trips.filter(trip => {
+    if (startDate) {
+      const tripDate = new Date(trip.departure_date);
+      const filterStart = new Date(startDate);
+      if (tripDate < filterStart) return false;
     }
-  };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'planned':
-        return 'Planejada';
-      case 'in_progress':
-        return 'Em Andamento';
-      case 'completed':
-        return 'Concluída';
-      case 'cancelled':
-        return 'Cancelada';
-      default:
-        return status;
+    if (endDate) {
+      const tripDate = new Date(trip.departure_date);
+      const filterEnd = new Date(endDate);
+      filterEnd.setHours(23, 59, 59);
+      if (tripDate > filterEnd) return false;
     }
-  };
 
-  const getNextStatus = (currentStatus: string): string => {
-    switch (currentStatus) {
-      case 'planned':
-        return 'in_progress';
-      case 'in_progress':
-        return 'completed';
-      case 'completed':
-        return 'cancelled';
-      case 'cancelled':
-        return 'planned';
-      default:
-        return 'planned';
-    }
-  };
+    return true;
+  });
 
-  const handleStatusCycle = async (trip: Trip) => {
-    try {
-      const nextStatus = getNextStatus(trip.status);
-      await updateDoc(doc(db, 'trips', trip.id), { status: nextStatus });
-      loadData();
-    } catch (error) {
-      console.error('Error updating trip status:', error);
-      alert('Erro ao atualizar status. Por favor, tente novamente.');
-    }
-  };
-
-  const filteredTrips = trips.filter(trip =>
-    statusFilter === 'all' || trip.status === statusFilter
+  const totalPages = Math.ceil(filteredTrips.length / ITEMS_PER_PAGE);
+  const paginatedTrips = filteredTrips.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
   );
-
-  const statusOptions: { value: StatusFilter; label: string; count: number }[] = [
-    { value: 'all', label: 'Todas', count: trips.length },
-    { value: 'planned', label: 'Planejadas', count: trips.filter(t => t.status === 'planned').length },
-    { value: 'in_progress', label: 'Em Andamento', count: trips.filter(t => t.status === 'in_progress').length },
-    { value: 'completed', label: 'Concluídas', count: trips.filter(t => t.status === 'completed').length },
-  ];
 
   const handleExportExcel = () => {
     const exportData = filteredTrips.map(trip => ({
-      'Status': getStatusLabel(trip.status),
       'Data de Partida': formatDateLocal(trip.departure_date),
       'Data de Chegada': trip.arrival_date ? formatDateLocal(trip.arrival_date) : '-',
       'Motorista': getDriverName(trip.driver_id),
@@ -262,8 +220,7 @@ export default function Trips() {
       'Observações': trip.notes || '-',
     }));
 
-    const filterLabel = statusFilter === 'all' ? 'todas' : getStatusLabel(statusFilter).toLowerCase();
-    exportToExcel(exportData, `viagens-${filterLabel}.csv`);
+    exportToExcel(exportData, `viagens.csv`);
   };
 
   const handleBulkImport = async (tripsToImport: Array<Omit<Trip, 'id' | 'created_at'>>) => {
@@ -294,9 +251,16 @@ export default function Trips() {
       <div className="flex flex-wrap justify-between items-center gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Viagens</h1>
-          <p className="text-slate-600 mt-2">Gerencie o histórico e planejamento de viagens</p>
+          <p className="text-slate-600 mt-2">Gerencie o histórico de viagens concluídas</p>
         </div>
         <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="inline-flex items-center px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
+          >
+            <Filter className="h-5 w-5 mr-2" />
+            Filtros
+          </button>
           <button
             onClick={handleExportExcel}
             disabled={filteredTrips.length === 0}
@@ -326,24 +290,94 @@ export default function Trips() {
         </div>
       </div>
 
-      <div className="flex space-x-2 mb-6 overflow-x-auto pb-2">
-        {statusOptions.map((option) => (
-          <button
-            key={option.value}
-            onClick={() => setStatusFilter(option.value)}
-            className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-colors ${
-              statusFilter === option.value
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            {option.label} ({option.count})
-          </button>
-        ))}
+      {showFilters && (
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">Filtros de Data</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Data Inicial
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Data Final
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div className="flex items-end">
+              <button
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                  setCurrentPage(1);
+                }}
+                className="w-full px-4 py-2 bg-slate-200 text-slate-900 rounded-lg hover:bg-slate-300 transition-colors"
+              >
+                Limpar Filtros
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4 mb-6">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-slate-600">
+            Mostrando {paginatedTrips.length} de {filteredTrips.length} viagens
+            {(startDate || endDate) && ' (filtradas)'}
+          </p>
+          {totalPages > 1 && (
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className={`p-2 rounded-lg transition-colors ${
+                  currentPage === 1
+                    ? 'text-slate-400 cursor-not-allowed'
+                    : 'text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <span className="text-sm text-slate-700">
+                Página {currentPage} de {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className={`p-2 rounded-lg transition-colors ${
+                  currentPage === totalPages
+                    ? 'text-slate-400 cursor-not-allowed'
+                    : 'text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="space-y-4">
-        {filteredTrips.map((trip) => (
+        {paginatedTrips.map((trip) => (
           <div
             key={trip.id}
             className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow"
@@ -354,13 +388,6 @@ export default function Trips() {
                   <h3 className="text-lg font-semibold text-slate-900">
                     {getVehicleInfo(trip.vehicle_id)}
                   </h3>
-                  <button
-                    onClick={() => handleStatusCycle(trip)}
-                    className={`inline-flex px-3 py-1 text-xs font-medium rounded-full transition-all hover:scale-105 cursor-pointer ${getStatusColor(trip.status)}`}
-                    title="Clique para mudar o status"
-                  >
-                    {getStatusLabel(trip.status)}
-                  </button>
                 </div>
                 <div className="flex items-center space-x-4 text-sm text-slate-600 mb-2">
                   <div className="flex items-center">
@@ -446,13 +473,65 @@ export default function Trips() {
           </div>
         ))}
 
-        {filteredTrips.length === 0 && (
+        {paginatedTrips.length === 0 && (
           <div className="text-center py-12 bg-white rounded-lg border border-slate-200">
             <FileText className="h-12 w-12 text-slate-400 mx-auto mb-4" />
             <p className="text-slate-600">Nenhuma viagem encontrada</p>
           </div>
         )}
       </div>
+
+      {totalPages > 1 && (
+        <div className="mt-6 flex items-center justify-center space-x-2">
+          <button
+            onClick={() => setCurrentPage(1)}
+            disabled={currentPage === 1}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              currentPage === 1
+                ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            Primeira
+          </button>
+          <button
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className={`p-2 rounded-lg transition-colors ${
+              currentPage === 1
+                ? 'text-slate-400 cursor-not-allowed'
+                : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <span className="px-4 py-2 text-sm text-slate-700 bg-white border border-slate-300 rounded-lg">
+            {currentPage} / {totalPages}
+          </span>
+          <button
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className={`p-2 rounded-lg transition-colors ${
+              currentPage === totalPages
+                ? 'text-slate-400 cursor-not-allowed'
+                : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+          <button
+            onClick={() => setCurrentPage(totalPages)}
+            disabled={currentPage === totalPages}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              currentPage === totalPages
+                ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            Última
+          </button>
+        </div>
+      )}
 
       {showBulkImport && (
         <BulkTripImportModal
@@ -565,23 +644,6 @@ export default function Trips() {
                       </div>
                     )}
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Status *
-                  </label>
-                  <select
-                    required
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="planned">Planejada</option>
-                    <option value="in_progress">Em Andamento</option>
-                    <option value="completed">Concluída</option>
-                    <option value="cancelled">Cancelada</option>
-                  </select>
                 </div>
 
                 <div>
