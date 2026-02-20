@@ -55,10 +55,20 @@ export default function Dashboard() {
 
       setVehicles(vehiclesData);
 
+      const countableVehicles = vehiclesData.filter(v => {
+        if (v.type === 'carreta' && v.coupled_vehicle_id) {
+          return false;
+        }
+        return true;
+      });
+
+      const activeCountableVehicles = countableVehicles.filter(v => v.status === 'active');
+      const maintenanceCountableVehicles = countableVehicles.filter(v => v.status === 'maintenance');
+
       setStats({
-        totalVehicles: vehiclesData.length,
-        activeVehicles: vehiclesData.filter((v: any) => v.status === 'active').length,
-        maintenanceVehicles: vehiclesData.filter((v: any) => v.status === 'maintenance').length,
+        totalVehicles: countableVehicles.length,
+        activeVehicles: activeCountableVehicles.length,
+        maintenanceVehicles: maintenanceCountableVehicles.length,
         upcomingTrips: trips.filter((t: any) => t.status === 'planned' || t.status === 'in_progress').length,
         completedTrips: trips.filter((t: any) => t.status === 'completed').length,
         totalMaintenances: maintenances.length,
