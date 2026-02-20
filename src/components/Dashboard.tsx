@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
 import { db } from '../lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import { Truck, Calendar, Wrench, TrendingUp, X } from 'lucide-react';
+import { Truck, Wrench, TrendingUp, X, Filter } from 'lucide-react';
 import type { Vehicle } from '../types';
 
 interface Stats {
   totalVehicles: number;
   activeVehicles: number;
   maintenanceVehicles: number;
-  upcomingTrips: number;
   completedTrips: number;
+  completedTripsFiltered: number;
   totalMaintenances: number;
+  totalMaintenancesFiltered: number;
 }
 
 interface VehicleTypeStats {
@@ -28,18 +29,25 @@ export default function Dashboard() {
     totalVehicles: 0,
     activeVehicles: 0,
     maintenanceVehicles: 0,
-    upcomingTrips: 0,
     completedTrips: 0,
+    completedTripsFiltered: 0,
     totalMaintenances: 0,
+    totalMaintenancesFiltered: 0,
   });
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [vehicleTypeStats, setVehicleTypeStats] = useState<VehicleTypeStats[]>([]);
   const [selectedType, setSelectedType] = useState<VehicleTypeStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showTripFilters, setShowTripFilters] = useState(false);
+  const [showMaintenanceFilters, setShowMaintenanceFilters] = useState(false);
+  const [tripStartDate, setTripStartDate] = useState('');
+  const [tripEndDate, setTripEndDate] = useState('');
+  const [maintenanceStartDate, setMaintenanceStartDate] = useState('');
+  const [maintenanceEndDate, setMaintenanceEndDate] = useState('');
 
   useEffect(() => {
     loadStats();
-  }, []);
+  }, [tripStartDate, tripEndDate, maintenanceStartDate, maintenanceEndDate]);
 
   const loadStats = async () => {
     try {
@@ -50,8 +58,8 @@ export default function Dashboard() {
       ]);
 
       const vehiclesData = vehiclesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vehicle));
-      const trips = tripsSnap.docs.map(doc => doc.data());
-      const maintenances = maintenancesSnap.docs;
+      const allTrips = tripsSnap.docs.map(doc => doc.data());
+      const allMaintenances = maintenancesSnap.docs.map(doc => doc.data());
 
       setVehicles(vehiclesData);
 
@@ -65,13 +73,44 @@ export default function Dashboard() {
       const activeCountableVehicles = countableVehicles.filter(v => v.status === 'active');
       const maintenanceCountableVehicles = countableVehicles.filter(v => v.status === 'maintenance');
 
+      const filteredTrips = allTrips.filter((t: any) => {
+        if (tripStartDate) {
+          const tripDate = new Date(t.departure_date);
+          const filterStart = new Date(tripStartDate);
+          if (tripDate < filterStart) return false;
+        }
+        if (tripEndDate) {
+          const tripDate = new Date(t.departure_date);
+          const filterEnd = new Date(tripEndDate);
+          filterEnd.setHours(23, 59, 59);
+          if (tripDate > filterEnd) return false;
+        }
+        return true;
+      });
+
+      const filteredMaintenances = allMaintenances.filter((m: any) => {
+        if (maintenanceStartDate) {
+          const maintenanceDate = new Date(m.maintenance_date);
+          const filterStart = new Date(maintenanceStartDate);
+          if (maintenanceDate < filterStart) return false;
+        }
+        if (maintenanceEndDate) {
+          const maintenanceDate = new Date(m.maintenance_date);
+          const filterEnd = new Date(maintenanceEndDate);
+          filterEnd.setHours(23, 59, 59);
+          if (maintenanceDate > filterEnd) return false;
+        }
+        return true;
+      });
+
       setStats({
         totalVehicles: countableVehicles.length,
         activeVehicles: activeCountableVehicles.length,
         maintenanceVehicles: maintenanceCountableVehicles.length,
-        upcomingTrips: trips.filter((t: any) => t.status === 'planned' || t.status === 'in_progress').length,
-        completedTrips: trips.filter((t: any) => t.status === 'completed').length,
-        totalMaintenances: maintenances.length,
+        completedTrips: allTrips.length,
+        completedTripsFiltered: filteredTrips.length,
+        totalMaintenances: allMaintenances.length,
+        totalMaintenancesFiltered: filteredMaintenances.length,
       });
 
       calculateVehicleTypeStats(vehiclesData);
@@ -143,12 +182,6 @@ export default function Dashboard() {
       icon: Wrench,
       color: 'bg-orange-500',
     },
-    {
-      title: 'Viagens Futuras',
-      value: stats.upcomingTrips,
-      icon: Calendar,
-      color: 'bg-cyan-500',
-    },
   ];
 
   if (loading) {
@@ -185,7 +218,7 @@ export default function Dashboard() {
         <p className="text-slate-600 mt-2">Visão geral da sua frota</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -261,26 +294,142 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">Resumo de Viagens</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-slate-900">Resumo de Viagens</h2>
+            <button
+              onClick={() => setShowTripFilters(!showTripFilters)}
+              className="inline-flex items-center px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors text-sm"
+            >
+              <Filter className="h-4 w-4 mr-1" />
+              Filtrar
+            </button>
+          </div>
+
+          {showTripFilters && (
+            <div className="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Data Inicial
+                  </label>
+                  <input
+                    type="date"
+                    value={tripStartDate}
+                    onChange={(e) => setTripStartDate(e.target.value)}
+                    className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Data Final
+                  </label>
+                  <input
+                    type="date"
+                    value={tripEndDate}
+                    onChange={(e) => setTripEndDate(e.target.value)}
+                    className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              {(tripStartDate || tripEndDate) && (
+                <button
+                  onClick={() => {
+                    setTripStartDate('');
+                    setTripEndDate('');
+                  }}
+                  className="mt-3 w-full px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors text-sm"
+                >
+                  Limpar Filtros
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-slate-600">Viagens Concluídas</span>
-              <span className="text-lg font-semibold text-slate-900">{stats.completedTrips}</span>
+              <span className="text-slate-600">
+                {tripStartDate || tripEndDate ? 'Viagens (Filtrado)' : 'Viagens Concluídas'}
+              </span>
+              <span className="text-lg font-semibold text-slate-900">
+                {tripStartDate || tripEndDate ? stats.completedTripsFiltered : stats.completedTrips}
+              </span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-slate-600">Viagens Planejadas</span>
-              <span className="text-lg font-semibold text-slate-900">{stats.upcomingTrips}</span>
-            </div>
+            {(tripStartDate || tripEndDate) && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-500">Total (sem filtro)</span>
+                <span className="text-slate-500">{stats.completedTrips}</span>
+              </div>
+            )}
           </div>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">Manutenções</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-slate-900">Manutenções</h2>
+            <button
+              onClick={() => setShowMaintenanceFilters(!showMaintenanceFilters)}
+              className="inline-flex items-center px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors text-sm"
+            >
+              <Filter className="h-4 w-4 mr-1" />
+              Filtrar
+            </button>
+          </div>
+
+          {showMaintenanceFilters && (
+            <div className="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Data Inicial
+                  </label>
+                  <input
+                    type="date"
+                    value={maintenanceStartDate}
+                    onChange={(e) => setMaintenanceStartDate(e.target.value)}
+                    className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Data Final
+                  </label>
+                  <input
+                    type="date"
+                    value={maintenanceEndDate}
+                    onChange={(e) => setMaintenanceEndDate(e.target.value)}
+                    className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              {(maintenanceStartDate || maintenanceEndDate) && (
+                <button
+                  onClick={() => {
+                    setMaintenanceStartDate('');
+                    setMaintenanceEndDate('');
+                  }}
+                  className="mt-3 w-full px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors text-sm"
+                >
+                  Limpar Filtros
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-slate-600">Total de Manutenções</span>
-              <span className="text-lg font-semibold text-slate-900">{stats.totalMaintenances}</span>
+              <span className="text-slate-600">
+                {maintenanceStartDate || maintenanceEndDate ? 'Manutenções (Filtrado)' : 'Total de Manutenções'}
+              </span>
+              <span className="text-lg font-semibold text-slate-900">
+                {maintenanceStartDate || maintenanceEndDate ? stats.totalMaintenancesFiltered : stats.totalMaintenances}
+              </span>
             </div>
+            {(maintenanceStartDate || maintenanceEndDate) && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-500">Total (sem filtro)</span>
+                <span className="text-slate-500">{stats.totalMaintenances}</span>
+              </div>
+            )}
             <div className="flex justify-between items-center">
               <span className="text-slate-600">Veículos em Manutenção</span>
               <span className="text-lg font-semibold text-slate-900">{stats.maintenanceVehicles}</span>
