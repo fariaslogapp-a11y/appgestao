@@ -249,7 +249,7 @@ export default function BulkTripImportModal({
     const tripsToCreate: Array<Omit<Trip, 'id' | 'created_at'>> = validTrips.map(trip => ({
       vehicle_id: trip.vehicleId || '',
       driver_id: trip.driverId || trip.driverName,
-      status: 'planned',
+      status: 'completed',
       origin: trip.origin,
       destination: trip.destination,
       departure_date: departureDate,
@@ -343,7 +343,7 @@ export default function BulkTripImportModal({
                     setHasHeader(e.target.checked);
                     if (pastedData.trim()) {
                       const parsed = parseTabularData(pastedData);
-                      const validated = validateTrips(parsed);
+                      const validated = deduplicateAndValidateTrips(parsed);
                       setPreview(validated);
                     }
                   }}
