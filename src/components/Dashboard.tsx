@@ -24,7 +24,27 @@ interface VehicleTypeStats {
   vehicles: Vehicle[];
 }
 
+const getCurrentMonthDates = () => {
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+  const formatDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  return {
+    start: formatDate(firstDay),
+    end: formatDate(lastDay)
+  };
+};
+
 export default function Dashboard() {
+  const currentMonth = getCurrentMonthDates();
+
   const [stats, setStats] = useState<Stats>({
     totalVehicles: 0,
     activeVehicles: 0,
@@ -40,10 +60,10 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [showTripFilters, setShowTripFilters] = useState(false);
   const [showMaintenanceFilters, setShowMaintenanceFilters] = useState(false);
-  const [tripStartDate, setTripStartDate] = useState('');
-  const [tripEndDate, setTripEndDate] = useState('');
-  const [maintenanceStartDate, setMaintenanceStartDate] = useState('');
-  const [maintenanceEndDate, setMaintenanceEndDate] = useState('');
+  const [tripStartDate, setTripStartDate] = useState(currentMonth.start);
+  const [tripEndDate, setTripEndDate] = useState(currentMonth.end);
+  const [maintenanceStartDate, setMaintenanceStartDate] = useState(currentMonth.start);
+  const [maintenanceEndDate, setMaintenanceEndDate] = useState(currentMonth.end);
 
   useEffect(() => {
     loadStats();
@@ -331,35 +351,30 @@ export default function Dashboard() {
                   />
                 </div>
               </div>
-              {(tripStartDate || tripEndDate) && (
-                <button
-                  onClick={() => {
-                    setTripStartDate('');
-                    setTripEndDate('');
-                  }}
-                  className="mt-3 w-full px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors text-sm"
-                >
-                  Limpar Filtros
-                </button>
-              )}
+              <button
+                onClick={() => {
+                  const monthDates = getCurrentMonthDates();
+                  setTripStartDate(monthDates.start);
+                  setTripEndDate(monthDates.end);
+                }}
+                className="mt-3 w-full px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors text-sm"
+              >
+                Voltar para Mês Atual
+              </button>
             </div>
           )}
 
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-slate-600">
-                {tripStartDate || tripEndDate ? 'Viagens (Filtrado)' : 'Viagens Concluídas'}
-              </span>
+              <span className="text-slate-600">Viagens (Mês Atual)</span>
               <span className="text-lg font-semibold text-slate-900">
-                {tripStartDate || tripEndDate ? stats.completedTripsFiltered : stats.completedTrips}
+                {stats.completedTripsFiltered}
               </span>
             </div>
-            {(tripStartDate || tripEndDate) && (
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-500">Total (sem filtro)</span>
-                <span className="text-slate-500">{stats.completedTrips}</span>
-              </div>
-            )}
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-slate-500">Total (todos os períodos)</span>
+              <span className="text-slate-500">{stats.completedTrips}</span>
+            </div>
           </div>
         </div>
 
@@ -401,35 +416,30 @@ export default function Dashboard() {
                   />
                 </div>
               </div>
-              {(maintenanceStartDate || maintenanceEndDate) && (
-                <button
-                  onClick={() => {
-                    setMaintenanceStartDate('');
-                    setMaintenanceEndDate('');
-                  }}
-                  className="mt-3 w-full px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors text-sm"
-                >
-                  Limpar Filtros
-                </button>
-              )}
+              <button
+                onClick={() => {
+                  const monthDates = getCurrentMonthDates();
+                  setMaintenanceStartDate(monthDates.start);
+                  setMaintenanceEndDate(monthDates.end);
+                }}
+                className="mt-3 w-full px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors text-sm"
+              >
+                Voltar para Mês Atual
+              </button>
             </div>
           )}
 
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-slate-600">
-                {maintenanceStartDate || maintenanceEndDate ? 'Manutenções (Filtrado)' : 'Total de Manutenções'}
-              </span>
+              <span className="text-slate-600">Manutenções (Mês Atual)</span>
               <span className="text-lg font-semibold text-slate-900">
-                {maintenanceStartDate || maintenanceEndDate ? stats.totalMaintenancesFiltered : stats.totalMaintenances}
+                {stats.totalMaintenancesFiltered}
               </span>
             </div>
-            {(maintenanceStartDate || maintenanceEndDate) && (
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-500">Total (sem filtro)</span>
-                <span className="text-slate-500">{stats.totalMaintenances}</span>
-              </div>
-            )}
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-slate-500">Total (todos os períodos)</span>
+              <span className="text-slate-500">{stats.totalMaintenances}</span>
+            </div>
             <div className="flex justify-between items-center">
               <span className="text-slate-600">Veículos em Manutenção</span>
               <span className="text-lg font-semibold text-slate-900">{stats.maintenanceVehicles}</span>
