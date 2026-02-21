@@ -33,17 +33,17 @@ export default function Navigation({ items, currentPage, onPageChange }: Navigat
     <nav className="bg-white shadow-sm border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
-          <div className="flex items-center">
-            <Truck className="h-8 w-8 text-blue-600" />
-            <span className="ml-2 text-xl font-bold text-slate-900 hidden sm:inline">
+          <div className="flex items-center gap-3 min-w-0">
+            <Truck className="h-8 w-8 text-blue-600 flex-shrink-0" />
+            <span className="text-xl font-bold text-slate-900 hidden md:block whitespace-nowrap">
               Sistema de Gestão de Frota
             </span>
-            <span className="ml-2 text-lg font-bold text-slate-900 sm:hidden">
+            <span className="text-base font-bold text-slate-900 md:hidden whitespace-nowrap">
               SGF
             </span>
           </div>
 
-          <div className="hidden sm:flex sm:items-center sm:space-x-1">
+          <div className="hidden md:flex md:items-center md:space-x-1 flex-shrink-0">
             {items.map((item) => {
               const Icon = item.icon;
               return (
@@ -71,7 +71,7 @@ export default function Navigation({ items, currentPage, onPageChange }: Navigat
             </button>
           </div>
 
-          <div className="sm:hidden flex items-center">
+          <div className="md:hidden flex items-center flex-shrink-0">
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="inline-flex items-center justify-center p-2 rounded-md text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -86,7 +86,7 @@ export default function Navigation({ items, currentPage, onPageChange }: Navigat
         </div>
 
         {isMenuOpen && (
-          <div className="sm:hidden border-t border-slate-200">
+          <div className="md:hidden border-t border-slate-200">
             <div className="px-2 pt-2 pb-3 space-y-1">
               {items.map((item) => {
                 const Icon = item.icon;
