@@ -90,16 +90,24 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
       <Navigation
         items={navigation}
         currentPage={currentPage}
         onPageChange={handlePageChange}
       />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         {renderPage()}
       </main>
+
+      <footer className="bg-white border-t border-slate-200 py-4 mt-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <p className="text-center text-sm text-slate-600">
+            Desenvolvido por <span className="font-semibold text-slate-900">Carlos Freitas</span> • © 2026
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
