@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { ChevronRight, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, getDocs, addDoc, updateDoc, doc, query, where } from 'firebase/firestore';
+import { updateVehicleKm } from '../utils/vehicleKmUpdate';
 import type { Vehicle, TireInspectionForm, TireInspectionResponse } from '../types';
 
 export default function TireInspectionFormPage() {
@@ -21,6 +22,7 @@ export default function TireInspectionFormPage() {
   const [selectedVehicleType, setSelectedVehicleType] = useState<'main' | 'coupled'>('main');
   const [selectedTire, setSelectedTire] = useState<string | null>(null);
   const [responses, setResponses] = useState<Record<string, any>>({});
+  const [currentKm, setCurrentKm] = useState<number>(0);
 
   useEffect(() => {
     loadForm();
@@ -244,11 +246,16 @@ export default function TireInspectionFormPage() {
   };
 
   const handleSubmit = async () => {
-    if (!form) return;
+    if (!form || !vehicle) return;
 
     const allFilled = tirePositions.every((pos) => isTireFilled(pos.id));
     if (!allFilled) {
       alert('Por favor, preencha todos os pneus antes de enviar.');
+      return;
+    }
+
+    if (!currentKm || currentKm === 0) {
+      alert('Por favor, preencha o KM Atual do veículo.');
       return;
     }
 
@@ -273,8 +280,11 @@ export default function TireInspectionFormPage() {
         await updateDoc(formDocRef, {
           status: 'completed',
           completed_at: new Date().toISOString(),
+          current_km: currentKm,
         });
       }
+
+      await updateVehicleKm(vehicle.id, currentKm);
 
       setStep('success');
     } catch (err) {
@@ -537,6 +547,19 @@ export default function TireInspectionFormPage() {
                     </div>
                   </div>
 
+                  <div className="mb-6">
+                    <h4 className="text-sm font-medium text-slate-700 mb-2">KM Atual do Veículo *</h4>
+                    <input
+                      type="number"
+                      value={currentKm || ''}
+                      onChange={(e) => setCurrentKm(parseInt(e.target.value) || 0)}
+                      placeholder="Digite o KM atual"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      min="0"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">Campo obrigatório</p>
+                  </div>
+
                   <div className="mb-6 max-h-96 overflow-y-auto">
                     <h4 className="text-sm font-medium text-slate-700 mb-3">Pneus</h4>
                     <div className="space-y-2">
@@ -564,9 +587,9 @@ export default function TireInspectionFormPage() {
 
                   <button
                     onClick={handleSubmit}
-                    disabled={!tirePositions.every((pos) => isTireFilled(pos.id))}
+                    disabled={!tirePositions.every((pos) => isTireFilled(pos.id)) || !currentKm || currentKm === 0}
                     className={`w-full px-4 py-3 rounded-lg font-medium transition-colors ${
-                      tirePositions.every((pos) => isTireFilled(pos.id))
+                      tirePositions.every((pos) => isTireFilled(pos.id)) && currentKm && currentKm > 0
                         ? 'bg-green-600 text-white hover:bg-green-700'
                         : 'bg-slate-300 text-slate-500 cursor-not-allowed'
                     }`}
