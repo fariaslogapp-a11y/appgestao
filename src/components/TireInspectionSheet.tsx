@@ -111,6 +111,7 @@ export default function TireInspectionSheet() {
         token: token,
         expires_at: expiresAt.toISOString(),
         completed_at: null,
+        current_km: 0,
         created_at: new Date().toISOString(),
       });
 
