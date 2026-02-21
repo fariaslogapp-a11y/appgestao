@@ -81,6 +81,7 @@ export interface TireInspectionForm {
   token: string;
   expires_at: string;
   completed_at: string | null;
+  current_km: number;
   created_at: string;
 }
 
