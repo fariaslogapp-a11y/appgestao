@@ -3,6 +3,7 @@ import { db } from '../lib/firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy } from 'firebase/firestore';
 import { Plus, Edit2, Trash2, X, CheckCircle } from 'lucide-react';
 import { formatDateLocal, getDateWithTimezoneOffset } from '../utils/dateUtils';
+import { updateVehicleKm } from '../utils/vehicleKmUpdate';
 
 import type { Maintenance, TireChange, Vehicle } from '../types';
 
@@ -96,6 +97,8 @@ export default function Maintenance() {
         }
       }
 
+      await updateVehicleKm(maintenanceForm.vehicle_id, maintenanceForm.km_at_maintenance);
+
       setShowModal(false);
       setEditingItem(null);
       resetMaintenanceForm();
@@ -145,6 +148,8 @@ export default function Maintenance() {
           created_at: new Date().toISOString()
         });
       }
+
+      await updateVehicleKm(tireForm.vehicle_id, tireForm.km_at_change);
 
       setShowModal(false);
       setEditingItem(null);
