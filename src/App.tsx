@@ -9,11 +9,12 @@ import TireInspectionSheet from './components/TireInspectionSheet';
 import TireInspectionFormPage from './components/TireInspectionFormPage';
 import TireInspectionReports from './components/TireInspectionReports';
 import CommissionRanking from './components/CommissionRanking';
+import TripChecklistManager from './components/TripChecklistManager';
 import LoginPage from './components/LoginPage';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { Truck, Users, Wrench, Route as RouteIcon, LayoutDashboard, FileText, TrendingUp, BarChart3 } from 'lucide-react';
+import { Truck, Users, Wrench, Route as RouteIcon, LayoutDashboard, FileText, TrendingUp, BarChart3, ClipboardCheck } from 'lucide-react';
 
-type Page = 'dashboard' | 'vehicles' | 'drivers' | 'maintenance' | 'trips' | 'tire-inspection' | 'tire-inspection-reports' | 'commission-ranking';
+type Page = 'dashboard' | 'vehicles' | 'drivers' | 'maintenance' | 'trips' | 'tire-inspection' | 'tire-inspection-reports' | 'commission-ranking' | 'trip-checklists';
 
 function AppContent() {
   const location = useLocation();
@@ -35,6 +36,7 @@ function AppContent() {
     { id: 'maintenance', name: 'Manutenção', icon: Wrench },
     { id: 'trips', name: 'Viagens', icon: RouteIcon },
     { id: 'commission-ranking', name: 'Comissões', icon: TrendingUp },
+    { id: 'trip-checklists', name: 'Checklists', icon: ClipboardCheck },
     { id: 'tire-inspection', name: 'Ficha de Pneus', icon: FileText },
     { id: 'tire-inspection-reports', name: 'Relatórios', icon: BarChart3 },
   ];
@@ -46,6 +48,7 @@ function AppContent() {
     '/maintenance': 'maintenance',
     '/trips': 'trips',
     '/commission-ranking': 'commission-ranking',
+    '/trip-checklists': 'trip-checklists',
     '/tire-inspection': 'tire-inspection',
     '/tire-inspection-reports': 'tire-inspection-reports',
   };
@@ -60,6 +63,7 @@ function AppContent() {
       'maintenance': '/maintenance',
       'trips': '/trips',
       'commission-ranking': '/commission-ranking',
+      'trip-checklists': '/trip-checklists',
       'tire-inspection': '/tire-inspection',
       'tire-inspection-reports': '/tire-inspection-reports',
     };
@@ -80,6 +84,8 @@ function AppContent() {
         return <Trips />;
       case 'commission-ranking':
         return <CommissionRanking />;
+      case 'trip-checklists':
+        return <TripChecklistManager />;
       case 'tire-inspection':
         return <TireInspectionSheet />;
       case 'tire-inspection-reports':
