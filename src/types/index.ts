@@ -115,3 +115,21 @@ export interface ManualCommission {
   date: string;
   created_at: string;
 }
+
+export interface ChecklistTemplate {
+  id: string;
+  name: string;
+  description: string;
+  documents: string[];
+  created_at: string;
+}
+
+export interface TripChecklist {
+  id: string;
+  trip_id: string;
+  template_id: string | null;
+  template_name: string;
+  documents: string[];
+  notes: string;
+  created_at: string;
+}
