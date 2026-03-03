@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { db } from '../lib/firebase';
 import { collection, getDocs, addDoc, deleteDoc, updateDoc, doc, query, where, orderBy as firestoreOrderBy } from 'firebase/firestore';
-import { TrendingUp, Calendar, Download, Filter, X, ChevronRight, Users, Plus, Edit2, Trash2, DollarSign, FileText, ChevronLeft, ChevronsLeft, ChevronsRight, ArrowUpDown } from 'lucide-react';
+import { TrendingUp, Calendar, Download, Filter, X, ChevronRight, Users, Plus, CreditCard as Edit2, Trash2, DollarSign, FileText, ChevronLeft, ChevronsLeft, ChevronsRight, ArrowUpDown } from 'lucide-react';
 import { formatDateLocal } from '../utils/dateUtils';
 import { exportToExcel } from '../utils/excelExport';
 import { exportCommissionSummaryToPDF, exportDriverCommissionDetailsToPDF, exportAllDriversDetailsToPDF } from '../utils/commissionPdfExport';
@@ -394,7 +394,7 @@ export default function CommissionRanking() {
 
       const monthName = currentMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
       const driverName = selectedDriver
-        ? drivers.find(d => d.id === selectedDriver)?.name.replace(/\s+/g, '-') || 'motorista'
+        ? drivers.find(d => d.id === selectedDriver)?.name.replace(/\s+/g, '-') || selectedDriver.replace(/\s+/g, '-')
         : 'filtrado';
       exportToExcel(exportData, `comissoes-detalhes-${driverName}-${monthName}.csv`);
     }
@@ -437,7 +437,7 @@ export default function CommissionRanking() {
       }));
 
       const driverName = selectedDriver
-        ? drivers.find(d => d.id === selectedDriver)?.name || 'motorista'
+        ? drivers.find(d => d.id === selectedDriver)?.name || selectedDriver
         : 'filtrado';
 
       exportDriverCommissionDetailsToPDF(
