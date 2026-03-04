@@ -18,6 +18,7 @@ export default function TripChecklistGenerator() {
   const [tripTemplates, setTripTemplates] = useState<Map<string, string>>(new Map());
   const [tripNotes, setTripNotes] = useState<Map<string, string>>(new Map());
   const [tripExtraDestinations, setTripExtraDestinations] = useState<Map<string, string>>(new Map());
+  const [tripCustomDestinations, setTripCustomDestinations] = useState<Map<string, string>>(new Map());
   const [generating, setGenerating] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -60,6 +61,9 @@ export default function TripChecklistGenerator() {
       const newExtraDestinations = new Map(tripExtraDestinations);
       newExtraDestinations.delete(tripId);
       setTripExtraDestinations(newExtraDestinations);
+      const newCustomDestinations = new Map(tripCustomDestinations);
+      newCustomDestinations.delete(tripId);
+      setTripCustomDestinations(newCustomDestinations);
     } else {
       newSelected.add(tripId);
     }
@@ -82,6 +86,12 @@ export default function TripChecklistGenerator() {
     const newExtraDestinations = new Map(tripExtraDestinations);
     newExtraDestinations.set(tripId, destinations);
     setTripExtraDestinations(newExtraDestinations);
+  };
+
+  const setCustomDestinationForTrip = (tripId: string, destination: string) => {
+    const newCustomDestinations = new Map(tripCustomDestinations);
+    newCustomDestinations.set(tripId, destination);
+    setTripCustomDestinations(newCustomDestinations);
   };
 
   const getVehiclePlate = (vehicleId: string) => {
@@ -141,6 +151,7 @@ export default function TripChecklistGenerator() {
         const template = templates.find(t => t.id === templateId);
         const notes = tripNotes.get(tripId) || '';
         const extraDestinations = tripExtraDestinations.get(tripId) || '';
+        const customDestination = tripCustomDestinations.get(tripId) || trip?.destination || '';
 
         if (!trip || !template) continue;
 
@@ -158,7 +169,7 @@ export default function TripChecklistGenerator() {
         }
         isFirstPage = false;
 
-        generateChecklistPage(doc, trip, template, vehicles, drivers, notes, extraDestinations);
+        generateChecklistPage(doc, trip, template, vehicles, drivers, notes, extraDestinations, customDestination);
       }
 
       const timestamp = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
@@ -178,7 +189,8 @@ export default function TripChecklistGenerator() {
     vehicles: Vehicle[],
     drivers: Driver[],
     notes: string,
-    extraDestinations: string
+    extraDestinations: string,
+    customDestination: string
   ) => {
     const pageHeight = doc.internal.pageSize.height;
     const pageWidth = doc.internal.pageSize.width;
@@ -239,8 +251,8 @@ export default function TripChecklistGenerator() {
       doc.setFont('helvetica', 'normal');
       doc.text('Destino:', 110, infoY);
       doc.setFont('helvetica', 'bold');
-      const destText = doc.splitTextToSize(trip.destination, 60);
-      doc.text(destText[0] || trip.destination, 125, infoY);
+      const destText = doc.splitTextToSize(customDestination, 60);
+      doc.text(destText[0] || customDestination, 125, infoY);
 
       if (extraDestinations && extraDestinations.trim()) {
         infoY += 6;
@@ -311,6 +323,7 @@ export default function TripChecklistGenerator() {
     setTripTemplates(new Map());
     setTripNotes(new Map());
     setTripExtraDestinations(new Map());
+    setTripCustomDestinations(new Map());
   };
 
   if (loading) {
@@ -426,6 +439,7 @@ export default function TripChecklistGenerator() {
               const selectedTemplate = tripTemplates.get(trip.id);
               const tripNotesValue = tripNotes.get(trip.id) || '';
               const tripExtraDestinationsValue = tripExtraDestinations.get(trip.id) || '';
+              const tripCustomDestinationValue = tripCustomDestinations.get(trip.id) || trip.destination;
 
               return (
                 <div
@@ -490,6 +504,22 @@ export default function TripChecklistGenerator() {
                                 </option>
                               ))}
                             </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Destino:
+                            </label>
+                            <input
+                              type="text"
+                              value={tripCustomDestinationValue}
+                              onChange={(e) => setCustomDestinationForTrip(trip.id, e.target.value)}
+                              placeholder="Ex: São Paulo - SP"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                            />
+                            <p className="text-xs text-slate-500 mt-1">
+                              Você pode editar o destino caso necessário
+                            </p>
                           </div>
 
                           <div>
